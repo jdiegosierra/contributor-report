@@ -23,6 +23,9 @@ When a PR is opened, this action:
 3. Generates a detailed report with metric breakdown and recommendations
 4. Posts the report as a PR comment (or labels/fails based on configuration)
 
+> [!TIP] **See it in action:** Check out [PR #5](https://github.com/jdiegosierra/contributor-report/pull/5) for a live
+> example of the Contributor Report in action, showing the detailed analysis and report format.
+
 ## Report Example
 
 The action posts a detailed comment on each PR with:
