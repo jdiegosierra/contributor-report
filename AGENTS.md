@@ -86,7 +86,32 @@ const { myFunction } = await import('../src/module.js')
 ### Build Pipeline
 
 - Rollup bundles `src/index.ts` → `dist/index.js`
-- **Critical**: Always run `pnpm bundle` after modifying `src/` - the `dist/` directory must be committed
+- **Critical**: The `dist/` directory must be committed with any `src/` changes
+- The pre-commit hook automatically runs `pnpm bundle` and verifies `dist/` is up to date
+
+## Repository Configuration
+
+### Branch Protection (main)
+
+- Requires 1 pull request review before merging
+- Requires status checks to pass:
+  - `Continuous Integration / TypeScript Tests`
+  - `Lint Codebase / Lint Codebase`
+- Requires conversation resolution before merging
+- Requires linear history (squash merge only)
+- Automatically deletes head branches after merge
+
+### Tag Protection
+
+- All tags matching `v*` pattern are protected from deletion and force-push
+- Prevents accidental modification of release tags (v1.0.0, v1.0.1, etc.)
+- Floating tags (v1, v2) can be updated by repository admins when needed
+
+### Merge Strategy
+
+- Only squash merge is allowed
+- Keeps commit history clean and linear
+- Each PR becomes a single commit on main
 
 ## Code Conventions
 
@@ -103,9 +128,13 @@ const { myFunction } = await import('../src/module.js')
 2. Make your changes in `src/`
 3. Add/update tests in `__tests__/`
 4. Run the full test suite: `pnpm run all`
-5. Bundle for distribution: `pnpm bundle`
-6. Commit changes (including `dist/` updates)
-7. Open a PR against `main`
+5. Commit changes: `git add . && git commit`
+   - The pre-commit hook automatically runs `pnpm bundle` and verifies `dist/` is synced
+   - If `dist/` changes are detected, stage them and commit again: `git add dist/ && git commit --amend --no-edit`
+6. Open a PR against `main`
+   - Requires 1 approval review
+   - Must pass all status checks (CI, Linter)
+   - Only squash merge is allowed
 
 ## Testing Locally
 
@@ -134,8 +163,10 @@ To test the action locally with real GitHub data:
 
 **dist/ out of sync?**
 
-- Run `pnpm bundle` after any `src/` changes
-- The CI will fail if `dist/` is not up to date
+- The pre-commit hook automatically checks this when you modify `src/` files
+- If you see an error, run `git add dist/` and commit again
+- Manual check: `pnpm bundle && git status`
+- The CI will also fail if `dist/` is not up to date
 
 **Rate limits?**
 

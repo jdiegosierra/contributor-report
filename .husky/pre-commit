@@ -1,1 +1,14 @@
 pnpm exec lint-staged
+
+# Check if dist/ is in sync when src/ files are staged
+if git diff --cached --name-only | grep -q "^src/"; then
+  echo "📦 Checking if dist/ is up to date..."
+  pnpm bundle
+  if ! git diff --quiet dist/; then
+    echo "❌ Error: dist/ is out of sync with src/"
+    echo "   The changes have been bundled. Please review and stage dist/ changes:"
+    echo "   git add dist/"
+    exit 1
+  fi
+  echo "✅ dist/ is up to date"
+fi
