@@ -4,14 +4,15 @@
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A GitHub Action that evaluates contributor quality using objective GitHub metrics to help combat AI-generated spam PRs
-in open source projects.
+A GitHub Action that analyzes PR contributors and generates detailed quality reports using objective GitHub metrics to
+help combat AI-generated spam PRs (AI slop) in open source projects.
 
 ## The Problem
 
-Open source maintainers are increasingly facing a flood of low-quality, AI-generated pull requests. These spam PRs waste
-maintainer time and resources. This action helps by analyzing the PR author's contribution history using objective
-metrics.
+Open source maintainers are increasingly facing a flood of low-quality, AI-generated pull requests (commonly known as
+"AI slop" or "slop code"). These spam PRs waste maintainer time and resources, cluttering repositories with
+minimal-value contributions. This action helps by analyzing the PR author's contribution history using objective metrics
+to identify potential spam or low-effort AI-generated contributions.
 
 ## How It Works
 
@@ -19,7 +20,43 @@ When a PR is opened, this action:
 
 1. Fetches the contributor's GitHub activity from the past 12 months
 2. Evaluates each metric against configurable thresholds
-3. Takes configured action if required metrics fail (comment, label, or fail)
+3. Generates a detailed report with metric breakdown and recommendations
+4. Posts the report as a PR comment (or labels/fails based on configuration)
+
+## Report Example
+
+The action posts a detailed comment on each PR with:
+
+- ✅/⚠️ Overall status indicator
+- Individual metric results in a table format
+- Pass/fail status for each metric with thresholds
+- Personalized recommendations for improvement
+- Special handling for new accounts and limited data
+
+Example report:
+
+```markdown
+## ✅ Contributor Quality Check
+
+**User:** @contributor **Status:** Passed (6/8 metrics passed)
+
+### Metric Results
+
+| Metric               | Value | Threshold | Status |
+| -------------------- | ----- | --------- | ------ |
+| PR Merge Rate        | 45%   | >= 30%    | ✅     |
+| Account Age          | 120d  | >= 30d    | ✅     |
+| Positive Reactions   | 15    | >= 5      | ✅     |
+| Negative Reactions   | 1     | <= 5      | ✅     |
+| Repo Quality         | 3     | >= 2      | ✅     |
+| Activity Consistency | 60%   | >= 50%    | ✅     |
+| Issue Engagement     | 2     | >= 1      | ✅     |
+| Code Reviews         | 0     | >= 1      | ❌     |
+
+### Recommendations
+
+- Consider reviewing code from other contributors to build reputation
+```
 
 ### Metrics
 
