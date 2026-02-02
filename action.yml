@@ -1,5 +1,5 @@
 name: 'Contributor Report'
-description: 'Evaluate PR contributor quality using objective GitHub metrics to combat AI-generated spam'
+description: 'Evaluate PR contributor quality using objective GitHub metrics to combat AI-generated spam and slop code'
 author: 'jdiegosierra'
 
 branding:

@@ -5,13 +5,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A GitHub Action that evaluates contributor quality using objective GitHub metrics to help combat AI-generated spam PRs
-in open source projects.
+(AI slop) in open source projects.
 
 ## The Problem
 
-Open source maintainers are increasingly facing a flood of low-quality, AI-generated pull requests. These spam PRs waste
-maintainer time and resources. This action helps by analyzing the PR author's contribution history using objective
-metrics.
+Open source maintainers are increasingly facing a flood of low-quality, AI-generated pull requests (commonly known as
+"AI slop" or "slop code"). These spam PRs waste maintainer time and resources, cluttering repositories with
+minimal-value contributions. This action helps by analyzing the PR author's contribution history using objective metrics
+to identify potential spam or low-effort AI-generated contributions.
 
 ## How It Works
 
