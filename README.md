@@ -58,6 +58,48 @@ Example report:
 - Consider reviewing code from other contributors to build reputation
 ```
 
+## Why Reports Instead of Scores?
+
+Unlike tools that assign a single numeric score (e.g., "45/100"), **Contributor Report** provides detailed, transparent
+reports. Here's why:
+
+### Numeric Scores Hide Important Context
+
+A score like "45/100 - Review Carefully" doesn't tell you:
+
+- **Which specific metrics failed** or why
+- **What to review** or what concerns exist
+- **How the contributor can improve**
+- **Why the threshold was set at that number**
+
+### Reports Provide Transparency & Fairness
+
+Open source values transparency. Contributors deserve to see:
+
+- Exactly what metrics were evaluated
+- The actual values vs required thresholds
+- Clear, actionable recommendations
+- Fair handling of new accounts and limited data
+
+### Every Project is Different
+
+A one-size-fits-all score assumes all projects value the same things. But:
+
+- A documentation project may not care about code reviews
+- A security-critical project might require high review activity
+- An experimental project might welcome new contributors with limited history
+
+**Detailed reports let you configure thresholds** that match your project's needs and make informed decisions based on
+your own standards.
+
+### Information, Not Judgment
+
+This action doesn't claim to know if someone is "good" or "bad". Instead, it provides **objective data and clear
+metrics** so maintainers can make informed decisions. It's the difference between:
+
+- ❌ "This PR author scores 45/100" (black-box judgment)
+- ✅ "This PR author has these metrics, here's what they mean, you decide" (transparent information)
+
 ### Metrics
 
 | Metric               | Description                                    | Default Threshold |
