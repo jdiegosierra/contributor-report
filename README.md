@@ -27,7 +27,7 @@ When a PR is opened, this action:
 
 The action posts a detailed comment on each PR with:
 
-- ✅/⚠️ Overall status indicator
+- ✅/❌ Overall status indicator
 - Individual metric results in a table format
 - Pass/fail status for each metric with thresholds
 - Personalized recommendations for improvement
@@ -38,7 +38,7 @@ Example report:
 ```markdown
 ## ✅ Contributor Quality Check
 
-**User:** @contributor **Status:** Passed (6/8 metrics passed)
+**User:** @contributor **Status:** Passed (7/8 metrics passed)
 
 ### Metric Results
 
@@ -60,8 +60,8 @@ Example report:
 
 ## Why Reports Instead of Scores?
 
-Unlike tools that assign a single numeric score (e.g., "45/100"), **Contributor Report** provides detailed, transparent
-reports. Here's why:
+Some tools assign contributors a single numeric score (e.g., "45/100" or "Safe/Caution" badges). While this seems
+convenient, **Contributor Report** takes a different approach by providing detailed, transparent reports. Here's why:
 
 ### Numeric Scores Hide Important Context
 
