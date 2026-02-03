@@ -41,8 +41,6 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
   }
 
   // Metric results table
-  lines.push('### Metric Results')
-  lines.push('')
   lines.push('| Metric | Description | Value | Threshold | Status |')
   lines.push('|--------|-------------|-------|-----------|--------|')
 
@@ -50,7 +48,7 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
     const statusIcon = metric.passed ? '✅' : '❌'
     const formattedValue = formatMetricValue(metric)
     const formattedThreshold = formatThreshold(metric)
-    const description = getMetricDescription(metric.name)
+    const description = getMetricDescription(metric.name, config.minimumStars)
     lines.push(
       `| ${formatMetricName(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`
     )
@@ -81,7 +79,7 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
 /**
  * Generate PR comment for passed check (compact version)
  */
-export function generatePassedComment(result: AnalysisResult): string {
+export function generatePassedComment(result: AnalysisResult, minimumStars = 100): string {
   const lines: string[] = [
     COMMENT_MARKER,
     '## ✅ Contributor Report',
@@ -96,7 +94,7 @@ export function generatePassedComment(result: AnalysisResult): string {
     '|--------|-------------|-------|-----------|--------|',
     ...result.metrics.map((m) => {
       const statusIcon = m.passed ? '✅' : '❌'
-      const description = getMetricDescription(m.name)
+      const description = getMetricDescription(m.name, minimumStars)
       return `| ${formatMetricName(m.name)} | ${description} | ${formatMetricValue(m)} | ${formatThreshold(m)} | ${statusIcon} |`
     }),
     '',
@@ -228,10 +226,10 @@ function formatMetricName(name: string): string {
 /**
  * Get metric description for display
  */
-function getMetricDescription(name: string): string {
+function getMetricDescription(name: string, minimumStars?: number): string {
   const descriptions: Record<string, string> = {
     prMergeRate: 'PRs merged vs closed',
-    repoQuality: 'Contributions to starred repos',
+    repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
     positiveReactions: 'Positive reactions received',
     negativeReactions: 'Negative reactions received',
     accountAge: 'GitHub account age',

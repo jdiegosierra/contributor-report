@@ -35199,15 +35199,13 @@ function generateAnalysisComment(result, config) {
         lines.push('');
     }
     // Metric results table
-    lines.push('### Metric Results');
-    lines.push('');
     lines.push('| Metric | Description | Value | Threshold | Status |');
     lines.push('|--------|-------------|-------|-----------|--------|');
     for (const metric of result.metrics) {
         const statusIcon = metric.passed ? '✅' : '❌';
         const formattedValue = formatMetricValue(metric);
         const formattedThreshold = formatThreshold(metric);
-        const description = getMetricDescription$1(metric.name);
+        const description = getMetricDescription$1(metric.name, config.minimumStars);
         lines.push(`| ${formatMetricName$1(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
     }
     lines.push('');
@@ -35338,10 +35336,10 @@ function formatMetricName$1(name) {
 /**
  * Get metric description for display
  */
-function getMetricDescription$1(name) {
+function getMetricDescription$1(name, minimumStars) {
     const descriptions = {
         prMergeRate: 'PRs merged vs closed',
-        repoQuality: 'Contributions to starred repos',
+        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
         positiveReactions: 'Positive reactions received',
         negativeReactions: 'Negative reactions received',
         accountAge: 'GitHub account age',
@@ -35460,7 +35458,7 @@ function logResultSummary(result) {
 /**
  * Write analysis result to GitHub Job Summary
  */
-async function writeJobSummary(result) {
+async function writeJobSummary(result, minimumStars = 100) {
     const statusEmoji = result.passed ? '✅' : '⚠️';
     const statusText = result.passed ? 'Passed' : 'Needs Review';
     summary
@@ -35474,7 +35472,7 @@ async function writeJobSummary(result) {
     if (result.hasLimitedData && !result.isNewAccount) {
         summary.addRaw(`> **Note:** Limited contribution data available. Results may be affected.\n\n`);
     }
-    summary.addHeading('Metric Results', 3).addTable([
+    summary.addTable([
         [
             { data: 'Metric', header: true },
             { data: 'Description', header: true },
@@ -35484,7 +35482,7 @@ async function writeJobSummary(result) {
         ],
         ...result.metrics.map((m) => [
             formatMetricName(m.name),
-            getMetricDescription(m.name),
+            getMetricDescription(m.name, minimumStars),
             formatValueForLog(m),
             formatThresholdForLog(m),
             m.passed ? '✅' : '❌'
@@ -35528,10 +35526,10 @@ function formatMetricName(name) {
 /**
  * Get metric description for display
  */
-function getMetricDescription(name) {
+function getMetricDescription(name, minimumStars) {
     const descriptions = {
         prMergeRate: 'PRs merged vs closed',
-        repoQuality: 'Contributions to starred repos',
+        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
         positiveReactions: 'Positive reactions received',
         negativeReactions: 'Negative reactions received',
         accountAge: 'GitHub account age',

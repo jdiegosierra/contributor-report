@@ -80,7 +80,6 @@ describe('Comment Generation', () => {
       expect(comment).toContain('## ✅ Contributor Report')
       expect(comment).toContain('**User:** @testuser')
       expect(comment).toContain('**Status:** Passed (8/8 metrics passed)')
-      expect(comment).toContain('### Metric Results')
       expect(comment).toContain('| Metric | Description | Value | Threshold | Status |')
       expect(comment).toContain(
         '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/pr-merge-rate.md)'

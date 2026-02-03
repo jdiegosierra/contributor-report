@@ -37,18 +37,16 @@ When a PR is opened, this action:
 
 **User:** @contributor **Status:** Passed (7/8 metrics passed)
 
-### Metric Results
-
-| Metric               | Value | Threshold | Status |
-| -------------------- | ----- | --------- | ------ |
-| PR Merge Rate        | 45%   | >= 30%    | ✅     |
-| Account Age          | 120d  | >= 30d    | ✅     |
-| Positive Reactions   | 15    | >= 5      | ✅     |
-| Negative Reactions   | 1     | <= 5      | ✅     |
-| Repo Quality         | 3     | >= 2      | ✅     |
-| Activity Consistency | 60%   | >= 50%    | ✅     |
-| Issue Engagement     | 2     | >= 1      | ✅     |
-| Code Reviews         | 0     | >= 1      | ❌     |
+| Metric               | Description                      | Value | Threshold | Status |
+| -------------------- | -------------------------------- | ----- | --------- | ------ |
+| PR Merge Rate        | PRs merged vs closed             | 45%   | >= 30%    | ✅     |
+| Account Age          | GitHub account age               | 120d  | >= 30d    | ✅     |
+| Positive Reactions   | Positive reactions received      | 15    | >= 5      | ✅     |
+| Negative Reactions   | Negative reactions received      | 1     | <= 5      | ✅     |
+| Repo Quality         | Repos with ≥100 stars            | 3     | >= 2      | ✅     |
+| Activity Consistency | Regular activity over time       | 60%   | >= 50%    | ✅     |
+| Issue Engagement     | Issues with community engagement | 2     | >= 1      | ✅     |
+| Code Reviews         | Code reviews given to others     | 0     | >= 1      | ❌     |
 
 ### Recommendations
 

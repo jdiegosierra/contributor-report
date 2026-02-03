@@ -121,7 +121,7 @@ export function logResultSummary(result: AnalysisResult): void {
 /**
  * Write analysis result to GitHub Job Summary
  */
-export async function writeJobSummary(result: AnalysisResult): Promise<void> {
+export async function writeJobSummary(result: AnalysisResult, minimumStars = 100): Promise<void> {
   const statusEmoji = result.passed ? '✅' : '⚠️'
   const statusText = result.passed ? 'Passed' : 'Needs Review'
 
@@ -141,7 +141,7 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
     core.summary.addRaw(`> **Note:** Limited contribution data available. Results may be affected.\n\n`)
   }
 
-  core.summary.addHeading('Metric Results', 3).addTable([
+  core.summary.addTable([
     [
       { data: 'Metric', header: true },
       { data: 'Description', header: true },
@@ -151,7 +151,7 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
     ],
     ...result.metrics.map((m) => [
       formatMetricName(m.name),
-      getMetricDescription(m.name),
+      getMetricDescription(m.name, minimumStars),
       formatValueForLog(m),
       formatThresholdForLog(m),
       m.passed ? '✅' : '❌'
@@ -204,10 +204,10 @@ function formatMetricName(name: string): string {
 /**
  * Get metric description for display
  */
-function getMetricDescription(name: string): string {
+function getMetricDescription(name: string, minimumStars?: number): string {
   const descriptions: Record<string, string> = {
     prMergeRate: 'PRs merged vs closed',
-    repoQuality: 'Contributions to starred repos',
+    repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
     positiveReactions: 'Positive reactions received',
     negativeReactions: 'Negative reactions received',
     accountAge: 'GitHub account age',
