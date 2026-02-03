@@ -157,6 +157,42 @@ export function parseInputs(): ContributorQualityConfig {
     )
   }
 
+  const mergerDiversityInput = core.getInput('threshold-merger-diversity')
+  if (mergerDiversityInput) {
+    customThresholds.mergerDiversity = parseIntSafe(
+      mergerDiversityInput,
+      'threshold-merger-diversity',
+      DEFAULT_CONFIG.thresholds.mergerDiversity
+    )
+  }
+
+  const repoHistoryMergeRateInput = core.getInput('threshold-repo-history-merge-rate')
+  if (repoHistoryMergeRateInput) {
+    customThresholds.repoHistoryMergeRate = parseFloatSafe(
+      repoHistoryMergeRateInput,
+      'threshold-repo-history-merge-rate',
+      DEFAULT_CONFIG.thresholds.repoHistoryMergeRate
+    )
+  }
+
+  const repoHistoryMinPRsInput = core.getInput('threshold-repo-history-min-prs')
+  if (repoHistoryMinPRsInput) {
+    customThresholds.repoHistoryMinPRs = parseIntSafe(
+      repoHistoryMinPRsInput,
+      'threshold-repo-history-min-prs',
+      DEFAULT_CONFIG.thresholds.repoHistoryMinPRs
+    )
+  }
+
+  const profileCompletenessInput = core.getInput('threshold-profile-completeness')
+  if (profileCompletenessInput) {
+    customThresholds.profileCompleteness = parseIntSafe(
+      profileCompletenessInput,
+      'threshold-profile-completeness',
+      DEFAULT_CONFIG.thresholds.profileCompleteness
+    )
+  }
+
   const thresholds = mergeThresholds(customThresholds)
 
   // Parse required metrics
@@ -198,6 +234,12 @@ export function parseInputs(): ContributorQualityConfig {
     DEFAULT_CONFIG.newAccountThresholdDays
   )
 
+  const enableSpamDetectionInput = core.getInput('enable-spam-detection')
+  const enableSpamDetection =
+    enableSpamDetectionInput === ''
+      ? DEFAULT_CONFIG.enableSpamDetection
+      : enableSpamDetectionInput.toLowerCase() !== 'false'
+
   const config: ContributorQualityConfig = {
     githubToken,
     thresholds,
@@ -210,7 +252,8 @@ export function parseInputs(): ContributorQualityConfig {
     labelName,
     dryRun,
     newAccountAction,
-    newAccountThresholdDays
+    newAccountThresholdDays,
+    enableSpamDetection
   }
 
   // Validate all config values

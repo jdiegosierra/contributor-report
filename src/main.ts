@@ -81,7 +81,7 @@ export async function run(): Promise<void> {
 
     // Evaluate contributor against thresholds
     core.info('Evaluating contributor metrics...')
-    const result = evaluateContributor(contributorData, config, sinceDate)
+    const result = evaluateContributor(contributorData, config, sinceDate, prContext)
 
     // Log results
     logResultSummary(result)

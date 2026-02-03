@@ -2,7 +2,7 @@
  * Main evaluation engine that checks all metrics against thresholds
  */
 
-import type { GraphQLContributorData } from '../types/github.js'
+import type { GraphQLContributorData, PRContext } from '../types/github.js'
 import type { ContributorQualityConfig } from '../types/config.js'
 import type { MetricCheckResult, AllMetricsData } from '../types/metrics.js'
 import type { AnalysisResult } from '../types/scoring.js'
@@ -23,7 +23,17 @@ import {
   extractIssueEngagementData,
   checkIssueEngagement,
   extractCodeReviewData,
-  checkCodeReviews
+  checkCodeReviews,
+  extractMergerDiversityData,
+  checkMergerDiversity,
+  extractRepoHistoryData,
+  checkRepoHistoryMergeRate,
+  checkRepoHistoryMinPRs,
+  extractProfileData,
+  checkProfileCompleteness,
+  extractSuspiciousPatterns,
+  checkSuspiciousPatterns,
+  hasCriticalSpamPatterns
 } from '../metrics/index.js'
 
 /**
@@ -32,16 +42,50 @@ import {
 export function extractAllMetrics(
   data: GraphQLContributorData,
   config: ContributorQualityConfig,
-  sinceDate: Date
+  sinceDate: Date,
+  prContext: PRContext
 ): AllMetricsData {
-  return {
-    prHistory: extractPRHistoryData(data, sinceDate),
-    repoQuality: extractRepoQualityData(data, config.minimumStars, sinceDate),
-    reactions: extractReactionData(data),
-    account: extractAccountData(data, config.analysisWindowMonths),
-    issueEngagement: extractIssueEngagementData(data),
-    codeReviews: extractCodeReviewData(data)
+  const username = data.user.login
+
+  // Extract base metrics
+  const prHistory = extractPRHistoryData(data, sinceDate)
+  const repoQuality = extractRepoQualityData(data, config.minimumStars, sinceDate)
+  const reactions = extractReactionData(data)
+  const account = extractAccountData(data, config.analysisWindowMonths)
+  const issueEngagement = extractIssueEngagementData(data)
+  const codeReviews = extractCodeReviewData(data)
+
+  // Extract new metrics
+  const mergerDiversity = extractMergerDiversityData(data, username, sinceDate)
+  const repoHistory = extractRepoHistoryData(data, prContext, sinceDate)
+  const profile = extractProfileData(data)
+
+  const baseMetrics: AllMetricsData = {
+    prHistory,
+    repoQuality,
+    reactions,
+    account,
+    issueEngagement,
+    codeReviews,
+    mergerDiversity,
+    repoHistory,
+    profile
   }
+
+  // Extract suspicious patterns if spam detection is enabled (cross-metric analysis)
+  if (config.enableSpamDetection) {
+    baseMetrics.suspiciousPatterns = extractSuspiciousPatterns(
+      {
+        prHistory,
+        repoQuality,
+        account,
+        mergerDiversity
+      },
+      username
+    )
+  }
+
+  return baseMetrics
 }
 
 /**
@@ -50,7 +94,7 @@ export function extractAllMetrics(
 export function checkAllMetrics(metricsData: AllMetricsData, config: ContributorQualityConfig): MetricCheckResult[] {
   const thresholds = config.thresholds
 
-  return [
+  const baseChecks = [
     checkPRMergeRate(metricsData.prHistory, thresholds.prMergeRate),
     checkRepoQuality(metricsData.repoQuality, thresholds.repoQuality, config.minimumStars),
     checkPositiveReactions(metricsData.reactions, thresholds.positiveReactions),
@@ -58,8 +102,19 @@ export function checkAllMetrics(metricsData: AllMetricsData, config: Contributor
     checkAccountAge(metricsData.account, thresholds.accountAge),
     checkActivityConsistency(metricsData.account, thresholds.activityConsistency),
     checkIssueEngagement(metricsData.issueEngagement, thresholds.issueEngagement),
-    checkCodeReviews(metricsData.codeReviews, thresholds.codeReviews)
+    checkCodeReviews(metricsData.codeReviews, thresholds.codeReviews),
+    checkMergerDiversity(metricsData.mergerDiversity, thresholds.mergerDiversity),
+    checkRepoHistoryMergeRate(metricsData.repoHistory, thresholds.repoHistoryMergeRate),
+    checkRepoHistoryMinPRs(metricsData.repoHistory, thresholds.repoHistoryMinPRs),
+    checkProfileCompleteness(metricsData.profile, thresholds.profileCompleteness)
   ]
+
+  // Add suspicious patterns check if spam detection is enabled
+  if (metricsData.suspiciousPatterns) {
+    baseChecks.push(checkSuspiciousPatterns(metricsData.suspiciousPatterns))
+  }
+
+  return baseChecks
 }
 
 /**
@@ -84,6 +139,14 @@ export function determinePassStatus(metrics: MetricCheckResult[], requiredMetric
 export function generateRecommendations(metricsData: AllMetricsData, metrics: MetricCheckResult[]): string[] {
   const recommendations: string[] = []
   const failedMetrics = metrics.filter((m) => !m.passed)
+
+  // Check for critical spam patterns FIRST - this takes priority
+  if (metricsData.suspiciousPatterns && hasCriticalSpamPatterns(metricsData.suspiciousPatterns)) {
+    recommendations.push(
+      'CRITICAL: Suspicious activity patterns detected. This account exhibits characteristics commonly associated with spam or automated contributions.'
+    )
+    return recommendations // Early return - other recommendations irrelevant
+  }
 
   for (const metric of failedMetrics) {
     switch (metric.name) {
@@ -115,6 +178,42 @@ export function generateRecommendations(metricsData: AllMetricsData, metrics: Me
       case 'issueEngagement':
         recommendations.push('Create issues to report bugs or suggest features, and engage with the community.')
         break
+      case 'mergerDiversity':
+        if (metricsData.mergerDiversity.onlySelfMergesOnOwnRepos) {
+          recommendations.push(
+            'Build trust by contributing to external projects where other maintainers can review and merge your work.'
+          )
+        } else {
+          recommendations.push(
+            'Increase trust signals by contributing to more diverse projects and getting PRs merged by different maintainers.'
+          )
+        }
+        break
+      case 'repoHistoryMergeRate':
+        if (metricsData.repoHistory.isFirstTimeContributor) {
+          recommendations.push('Welcome! This is your first contribution to this repository.')
+        } else {
+          recommendations.push('Review previous rejected PRs in this repository to understand maintainer expectations.')
+        }
+        break
+      case 'repoHistoryMinPRs':
+        recommendations.push('Build trust by making consistent, quality contributions to this repository over time.')
+        break
+      case 'profileCompleteness': {
+        const missing = []
+        if (!metricsData.profile.hasBio) missing.push('bio')
+        if (!metricsData.profile.hasCompany) missing.push('company/affiliation')
+        if (metricsData.profile.followersCount === 0) missing.push('GitHub followers (engage with community)')
+        if (missing.length > 0) {
+          recommendations.push(
+            `Complete your GitHub profile by adding: ${missing.join(', ')}. A complete profile builds trust with maintainers.`
+          )
+        }
+        break
+      }
+      case 'suspiciousPatterns':
+        // Handled above with critical check
+        break
     }
   }
 
@@ -134,13 +233,14 @@ export function generateRecommendations(metricsData: AllMetricsData, metrics: Me
 export function evaluateContributor(
   data: GraphQLContributorData,
   config: ContributorQualityConfig,
-  sinceDate: Date
+  sinceDate: Date,
+  prContext: PRContext
 ): AnalysisResult {
   const username = data.user.login
   const now = new Date()
 
   // Extract all metrics data
-  const metricsData = extractAllMetrics(data, config, sinceDate)
+  const metricsData = extractAllMetrics(data, config, sinceDate, prContext)
 
   // Check all metrics against thresholds
   const metrics = checkAllMetrics(metricsData, config)

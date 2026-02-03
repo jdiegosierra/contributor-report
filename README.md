@@ -102,16 +102,20 @@ metrics** so maintainers can make informed decisions. It's the difference betwee
 
 ### Metrics
 
-| Metric               | Description                                    | Default Threshold |
-| -------------------- | ---------------------------------------------- | ----------------- |
-| PR Merge Rate        | Percentage of PRs that get merged vs closed    | >= 0%             |
-| Account Age          | Age of the GitHub account                      | >= 0 days         |
-| Positive Reactions   | Positive reactions received on comments/issues | >= 0              |
-| Negative Reactions   | Negative reactions received (maximum allowed)  | <= 0              |
-| Repo Quality         | Contributions to repos with stars              | >= 0              |
-| Activity Consistency | Regular activity over time                     | >= 0%             |
-| Issue Engagement     | Issues created that receive engagement         | >= 0              |
-| Code Reviews         | Code reviews given to others                   | >= 0              |
+| Metric               | Description                                     | Default Threshold |
+| -------------------- | ----------------------------------------------- | ----------------- |
+| PR Merge Rate        | Percentage of PRs that get merged vs closed     | >= 0%             |
+| Account Age          | Age of the GitHub account                       | >= 0 days         |
+| Positive Reactions   | Positive reactions received on comments/issues  | >= 0              |
+| Negative Reactions   | Negative reactions received (maximum allowed)   | <= 0              |
+| Repo Quality         | Contributions to repos with stars               | >= 0              |
+| Activity Consistency | Regular activity over time                      | >= 0%             |
+| Issue Engagement     | Issues created that receive engagement          | >= 0              |
+| Code Reviews         | Code reviews given to others                    | >= 0              |
+| Merger Diversity     | Unique maintainers who merged contributor's PRs | >= 0              |
+| Repo History         | Track record in the specific repository         | >= 0              |
+| Profile Completeness | GitHub profile richness (bio, followers, etc.)  | >= 0              |
+| Suspicious Patterns  | Detection of spam-like activity patterns        | N/A (auto)        |
 
 ## Metric Details
 
@@ -244,6 +248,70 @@ Reviewers who help others improve their code are valuable contributors. Spam acc
 - Look for opportunities to help other contributors
 - Share your knowledge and expertise
 
+### Merger Diversity
+
+**What it measures:** The number of unique maintainers who have merged the contributor's pull requests.
+
+**Why it matters:** Having PRs merged by different maintainers across various projects demonstrates trust from the
+community. Contributors who only self-merge their own PRs on their own repositories haven't demonstrated external trust.
+
+**How it's calculated:** Count of unique GitHub users who merged the contributor's PRs. Self-merges on own repositories
+are tracked separately.
+
+**How to improve:**
+
+- Contribute to established projects where maintainers review and merge your work
+- Build relationships with project maintainers
+- Focus on quality contributions that get merged by others
+
+### Repo History
+
+**What it measures:** The contributor's track record in the specific repository receiving the PR.
+
+**Why it matters:** A history of successful contributions to a repository indicates familiarity with its codebase,
+contribution guidelines, and maintainer expectations.
+
+**How it's calculated:** Merge rate and PR count specifically for the target repository.
+
+**How to improve:**
+
+- Start with smaller contributions to build trust
+- Follow the project's contribution guidelines carefully
+- Respond to reviewer feedback promptly
+
+### Profile Completeness
+
+**What it measures:** How complete the contributor's GitHub profile is (bio, company, followers, public repos).
+
+**Why it matters:** A complete profile indicates a legitimate, invested GitHub user. Spam accounts typically have
+minimal or no profile information.
+
+**How it's calculated:** Score based on presence of bio (20 points), company (20 points), followers (up to 40 points),
+and public repositories (up to 20 points).
+
+**How to improve:**
+
+- Add a bio describing yourself and your interests
+- Fill in your company or affiliation
+- Engage with the community to gain followers
+- Create and maintain public repositories
+
+### Suspicious Patterns
+
+**What it measures:** Detection of activity patterns commonly associated with spam accounts.
+
+**Why it matters:** Certain combinations of behaviors (new account + high PR volume + many repos) are strong indicators
+of automated spam.
+
+**Patterns detected:**
+
+- **SPAM_PATTERN:** New account (<30 days) with >25 PRs across >10 repositories
+- **HIGH_PR_RATE:** More than 2 PRs per day on average
+- **SELF_MERGE_ABUSE:** High rate of self-merges on low-quality repositories
+- **REPO_SPAM:** Contributions to many repos with very low star counts
+
+**Note:** This metric cannot be configured with a threshold. Critical patterns cause automatic failure.
+
 ## Usage
 
 > **Note**: All metric thresholds default to `0`, making the action permissive by default. Configure stricter thresholds
@@ -287,6 +355,13 @@ jobs:
     threshold-account-age: '30' # Require 30+ day old accounts
     threshold-positive-reactions: '1' # Require at least 1 positive reaction
     threshold-negative-reactions: '5' # Allow max 5 negative reactions
+    threshold-merger-diversity: '2' # Require 2+ unique maintainers who merged PRs
+    threshold-repo-history-merge-rate: '0.3' # Require 30% merge rate in this repo
+    threshold-repo-history-min-prs: '1' # Require at least 1 previous PR in repo
+    threshold-profile-completeness: '20' # Require profile completeness score >= 20
+
+    # Spam detection (enabled by default)
+    enable-spam-detection: 'true'
 
     # Metrics that must pass (comma-separated)
     required-metrics: 'prMergeRate,accountAge'
@@ -321,24 +396,29 @@ jobs:
 
 ## Inputs
 
-| Input                          | Required | Default                  | Description                        |
-| ------------------------------ | -------- | ------------------------ | ---------------------------------- |
-| `github-token`                 | Yes      | `${{ github.token }}`    | GitHub token for API access        |
-| `thresholds`                   | No       | `{}`                     | JSON object with custom thresholds |
-| `threshold-pr-merge-rate`      | No       | `0`                      | Minimum PR merge rate (0-1)        |
-| `threshold-account-age`        | No       | `0`                      | Minimum account age in days        |
-| `threshold-positive-reactions` | No       | `0`                      | Minimum positive reactions         |
-| `threshold-negative-reactions` | No       | `0`                      | Maximum negative reactions         |
-| `required-metrics`             | No       | `prMergeRate,accountAge` | Metrics that must pass             |
-| `minimum-stars`                | No       | `100`                    | Min stars for quality repos        |
-| `analysis-window`              | No       | `12`                     | Months of history to analyze       |
-| `trusted-users`                | No       | Common bots              | Comma-separated whitelist          |
-| `trusted-orgs`                 | No       | -                        | Comma-separated org whitelist      |
-| `on-fail`                      | No       | `comment`                | Action when check fails            |
-| `label-name`                   | No       | `needs-review`           | Label to apply                     |
-| `dry-run`                      | No       | `false`                  | Log only, no actions               |
-| `new-account-action`           | No       | `neutral`                | Handling for new accounts          |
-| `new-account-threshold-days`   | No       | `30`                     | Days to consider "new"             |
+| Input                               | Required | Default                  | Description                           |
+| ----------------------------------- | -------- | ------------------------ | ------------------------------------- |
+| `github-token`                      | Yes      | `${{ github.token }}`    | GitHub token for API access           |
+| `thresholds`                        | No       | `{}`                     | JSON object with custom thresholds    |
+| `threshold-pr-merge-rate`           | No       | `0`                      | Minimum PR merge rate (0-1)           |
+| `threshold-account-age`             | No       | `0`                      | Minimum account age in days           |
+| `threshold-positive-reactions`      | No       | `0`                      | Minimum positive reactions            |
+| `threshold-negative-reactions`      | No       | `0`                      | Maximum negative reactions            |
+| `threshold-merger-diversity`        | No       | `0`                      | Minimum unique maintainers who merged |
+| `threshold-repo-history-merge-rate` | No       | `0`                      | Minimum merge rate in this repo (0-1) |
+| `threshold-repo-history-min-prs`    | No       | `0`                      | Minimum previous PRs in this repo     |
+| `threshold-profile-completeness`    | No       | `0`                      | Minimum profile completeness (0-100)  |
+| `enable-spam-detection`             | No       | `true`                   | Enable suspicious pattern detection   |
+| `required-metrics`                  | No       | `prMergeRate,accountAge` | Metrics that must pass                |
+| `minimum-stars`                     | No       | `100`                    | Min stars for quality repos           |
+| `analysis-window`                   | No       | `12`                     | Months of history to analyze          |
+| `trusted-users`                     | No       | Common bots              | Comma-separated whitelist             |
+| `trusted-orgs`                      | No       | -                        | Comma-separated org whitelist         |
+| `on-fail`                           | No       | `comment`                | Action when check fails               |
+| `label-name`                        | No       | `needs-review`           | Label to apply                        |
+| `dry-run`                           | No       | `false`                  | Log only, no actions                  |
+| `new-account-action`                | No       | `neutral`                | Handling for new accounts             |
+| `new-account-threshold-days`        | No       | `30`                     | Days to consider "new"                |
 
 ## Outputs
 
