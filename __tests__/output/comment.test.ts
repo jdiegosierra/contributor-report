@@ -27,14 +27,20 @@ describe('Comment Generation', () => {
       accountAge: 30,
       activityConsistency: 0.3,
       issueEngagement: 1,
-      codeReviews: 2
+      codeReviews: 2,
+      mergerDiversity: 0,
+      repoHistoryMergeRate: 0,
+      repoHistoryMinPRs: 0,
+      profileCompleteness: 0
     },
     trustedUsers: [],
     trustedOrgs: [],
     labelName: '',
     onFail: 'comment',
     requiredMetrics: ['prMergeRate', 'accountAge'],
-    dryRun: false
+    dryRun: false,
+    enableSpamDetection: true,
+    verboseDetails: 'none'
   }
 
   const createMetric = (name: string, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
@@ -235,7 +241,7 @@ describe('Comment Generation', () => {
 
   describe('generatePassedComment', () => {
     it('generates compact passed comment', () => {
-      const comment = generatePassedComment(baseResult)
+      const comment = generatePassedComment(baseResult, baseConfig)
 
       expect(comment).toContain(COMMENT_MARKER)
       expect(comment).toContain('## ✅ Contributor Report')
@@ -248,7 +254,7 @@ describe('Comment Generation', () => {
     })
 
     it('includes all metrics in details section', () => {
-      const comment = generatePassedComment(baseResult)
+      const comment = generatePassedComment(baseResult, baseConfig)
 
       expect(comment).toContain('[PR Merge Rate]')
       expect(comment).toContain('[Repo Quality]')
@@ -266,7 +272,7 @@ describe('Comment Generation', () => {
         metrics: [createMetric('prMergeRate', 0.8, 0.5, true), createMetric('codeReviews', 0, 2, false)]
       }
 
-      const comment = generatePassedComment(mixedResult)
+      const comment = generatePassedComment(mixedResult, baseConfig)
 
       expect(comment).toContain('✅')
       expect(comment).toContain('❌')

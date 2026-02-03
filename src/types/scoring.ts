@@ -2,7 +2,7 @@
  * Analysis result types
  */
 
-import type { MetricCheckResult } from './metrics.js'
+import type { MetricCheckResult, AllMetricsData } from './metrics.js'
 
 /** Complete analysis result */
 export interface AnalysisResult {
@@ -47,6 +47,9 @@ export interface AnalysisResult {
 
   /** User was whitelisted (trusted user or org member) */
   wasWhitelisted: boolean
+
+  /** Raw metrics data for verbose output */
+  metricsData?: AllMetricsData
 }
 
 /** Action output format */
