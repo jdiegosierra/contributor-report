@@ -183,7 +183,12 @@ function formatMetricName(name: string): string {
     accountAge: { display: 'Account Age', anchor: 'account-age' },
     activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
     issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-    codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
+    codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' },
+    mergerDiversity: { display: 'Merger Diversity', anchor: 'merger-diversity' },
+    repoHistoryMergeRate: { display: 'Repo History Merge Rate', anchor: 'repo-history' },
+    repoHistoryMinPRs: { display: 'Repo History Min PRs', anchor: 'repo-history' },
+    profileCompleteness: { display: 'Profile Completeness', anchor: 'profile-completeness' },
+    suspiciousPatterns: { display: 'Suspicious Patterns', anchor: 'suspicious-patterns' }
   }
 
   const info = metricInfo[name]
