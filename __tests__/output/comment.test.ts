@@ -201,6 +201,17 @@ describe('Comment Generation', () => {
       expect(comment).toContain('<= 0')
     })
 
+    it('formats suspicious patterns threshold as N/A', () => {
+      const result: AnalysisResult = {
+        ...baseResult,
+        metrics: [createMetric('suspiciousPatterns', 0, 0, true)]
+      }
+
+      const comment = generateAnalysisComment(result, baseConfig)
+
+      expect(comment).toContain('| N/A |')
+    })
+
     it('formats regular metrics with numbers', () => {
       const result: AnalysisResult = {
         ...baseResult,
