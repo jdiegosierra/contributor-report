@@ -274,6 +274,7 @@ export function evaluateContributor(
     isNewAccount: accountIsNew,
     hasLimitedData,
     isTrustedUser: false,
-    wasWhitelisted: false
+    wasWhitelisted: false,
+    metricsData
   }
 }

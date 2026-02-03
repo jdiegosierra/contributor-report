@@ -4,6 +4,8 @@
 
 import * as core from '@actions/core'
 import type { AnalysisResult, ActionOutput } from '../types/scoring.js'
+import type { ContributorQualityConfig, VerboseDetailsLevel } from '../types/config.js'
+import type { AllMetricsData } from '../types/metrics.js'
 
 /**
  * Format analysis result for action outputs
@@ -121,7 +123,7 @@ export function logResultSummary(result: AnalysisResult): void {
 /**
  * Write analysis result to GitHub Job Summary
  */
-export async function writeJobSummary(result: AnalysisResult, minimumStars = 100): Promise<void> {
+export async function writeJobSummary(result: AnalysisResult, config: ContributorQualityConfig): Promise<void> {
   const statusEmoji = result.passed ? '✅' : '⚠️'
   const statusText = result.passed ? 'Passed' : 'Needs Review'
 
@@ -151,12 +153,29 @@ export async function writeJobSummary(result: AnalysisResult, minimumStars = 100
     ],
     ...result.metrics.map((m) => [
       formatMetricName(m.name),
-      getMetricDescription(m.name, minimumStars),
+      getMetricDescription(m.name, config.minimumStars),
       formatValueForLog(m),
       formatThresholdForLog(m),
       m.passed ? '✅' : '❌'
     ])
   ])
+
+  // Add verbose details if enabled
+  if (result.metricsData && config.verboseDetails !== 'none') {
+    const metricsToShow = result.metrics.filter((m) =>
+      shouldShowVerboseDetailsForSummary(config.verboseDetails, m.passed)
+    )
+
+    if (metricsToShow.length > 0) {
+      core.summary.addHeading('Metric Details', 3)
+      for (const metric of metricsToShow) {
+        const details = formatVerboseDetailsForSummary(metric.name, result.metricsData)
+        if (details) {
+          core.summary.addRaw(details)
+        }
+      }
+    }
+  }
 
   // Recommendations (only if there are failed metrics)
   if (result.recommendations.length > 0 && !result.passed) {
@@ -169,6 +188,70 @@ export async function writeJobSummary(result: AnalysisResult, minimumStars = 100
       `<sub>Analysis period: ${result.dataWindowStart.toISOString().split('T')[0]} to ${result.dataWindowEnd.toISOString().split('T')[0]}</sub>\n`
     )
     .write()
+}
+
+/**
+ * Check if verbose details should be shown for a metric in job summary
+ */
+function shouldShowVerboseDetailsForSummary(verboseLevel: VerboseDetailsLevel, metricPassed: boolean): boolean {
+  if (verboseLevel === 'none') return false
+  if (verboseLevel === 'all') return true
+  if (verboseLevel === 'failed') return !metricPassed
+  return false
+}
+
+/**
+ * Format verbose details for job summary (markdown format without HTML details tags)
+ */
+function formatVerboseDetailsForSummary(metricName: string, metricsData: AllMetricsData): string {
+  switch (metricName) {
+    case 'prMergeRate': {
+      const data = metricsData.prHistory
+      return `\n**PR Merge Rate:** ${data.mergedPRs} merged, ${data.closedWithoutMerge} closed, ${data.openPRs} open (avg size: ${data.averagePRSize} lines)\n`
+    }
+    case 'repoQuality': {
+      const data = metricsData.repoQuality
+      const topRepos = [...data.contributedRepos]
+        .sort((a, b) => b.stars - a.stars)
+        .slice(0, 3)
+        .map((r) => `${r.owner}/${r.repo} (${r.stars} ⭐)`)
+        .join(', ')
+      return `\n**Repo Quality:** ${data.qualityRepoCount} quality repos. Top: ${topRepos || 'none'}\n`
+    }
+    case 'positiveReactions':
+    case 'negativeReactions': {
+      const data = metricsData.reactions
+      return `\n**Reactions:** ${data.positiveReactions} positive, ${data.negativeReactions} negative from ${data.totalComments} comments\n`
+    }
+    case 'accountAge':
+    case 'activityConsistency': {
+      const data = metricsData.account
+      return `\n**Account:** ${data.ageInDays} days old, active ${data.monthsWithActivity}/${data.totalMonthsInWindow} months\n`
+    }
+    case 'mergerDiversity': {
+      const data = metricsData.mergerDiversity
+      const mergers = data.mergerLogins.slice(0, 3).join(', ')
+      return `\n**Merger Diversity:** ${data.uniqueMergers} unique mergers (${mergers}${data.mergerLogins.length > 3 ? '...' : ''}), self-merge rate: ${(data.selfMergeRate * 100).toFixed(0)}%\n`
+    }
+    case 'suspiciousPatterns': {
+      const data = metricsData.suspiciousPatterns
+      if (!data || data.detectedPatterns.length === 0) {
+        return `\n**Suspicious Patterns:** None detected\n`
+      }
+      const patterns = data.detectedPatterns.map((p) => `${p.severity}: ${p.type}`).join(', ')
+      return `\n**Suspicious Patterns:** ${patterns}\n`
+    }
+    case 'profileCompleteness': {
+      const data = metricsData.profile
+      const components = []
+      if (data.hasBio) components.push('bio')
+      if (data.hasCompany) components.push('company')
+      if (data.followersCount > 0) components.push(`${data.followersCount} followers`)
+      return `\n**Profile:** Score ${data.completenessScore}/100 (${components.join(', ') || 'incomplete'})\n`
+    }
+    default:
+      return ''
+  }
 }
 
 /**

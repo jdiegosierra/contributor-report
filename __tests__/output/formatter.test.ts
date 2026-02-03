@@ -19,6 +19,7 @@ const {
 
 import type { AnalysisResult } from '../../src/types/scoring.js'
 import type { MetricCheckResult } from '../../src/types/metrics.js'
+import type { ContributorQualityConfig } from '../../src/types/config.js'
 
 describe('Output Formatter', () => {
   const createMetric = (name: string, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
@@ -28,6 +29,36 @@ describe('Output Formatter', () => {
     passed,
     details: `Test metric ${name}`
   })
+
+  const baseConfig: ContributorQualityConfig = {
+    githubToken: 'test-token',
+    minimumStars: 100,
+    analysisWindowMonths: 12,
+    newAccountThresholdDays: 30,
+    newAccountAction: 'neutral',
+    thresholds: {
+      prMergeRate: 0.5,
+      repoQuality: 2,
+      positiveReactions: 5,
+      negativeReactions: 0,
+      accountAge: 30,
+      activityConsistency: 0.3,
+      issueEngagement: 1,
+      codeReviews: 2,
+      mergerDiversity: 0,
+      repoHistoryMergeRate: 0,
+      repoHistoryMinPRs: 0,
+      profileCompleteness: 0
+    },
+    trustedUsers: [],
+    trustedOrgs: [],
+    labelName: '',
+    onFail: 'comment',
+    requiredMetrics: ['prMergeRate', 'accountAge'],
+    dryRun: false,
+    enableSpamDetection: true,
+    verboseDetails: 'none'
+  }
 
   const baseResult: AnalysisResult = {
     username: 'testuser',
@@ -315,7 +346,7 @@ describe('Output Formatter', () => {
 
   describe('writeJobSummary', () => {
     it('writes passed analysis to summary', async () => {
-      await writeJobSummary(baseResult)
+      await writeJobSummary(baseResult, baseConfig)
 
       expect(core.summary.addHeading).toHaveBeenCalledWith('✅ Contributor Report', 2)
       expect(core.summary.addRaw).toHaveBeenCalledWith(expect.stringContaining('@testuser'))
@@ -332,7 +363,7 @@ describe('Output Formatter', () => {
         recommendations: ['Improve PR quality']
       }
 
-      await writeJobSummary(failedResult)
+      await writeJobSummary(failedResult, baseConfig)
 
       expect(core.summary.addHeading).toHaveBeenCalledWith('⚠️ Contributor Report', 2)
       expect(core.summary.addRaw).toHaveBeenCalledWith(expect.stringContaining('Needs Review'))
@@ -345,7 +376,7 @@ describe('Output Formatter', () => {
         isNewAccount: true
       }
 
-      await writeJobSummary(newAccountResult)
+      await writeJobSummary(newAccountResult, baseConfig)
 
       expect(core.summary.addRaw).toHaveBeenCalledWith(expect.stringContaining('new GitHub account'))
     })
@@ -357,7 +388,7 @@ describe('Output Formatter', () => {
         isNewAccount: false
       }
 
-      await writeJobSummary(limitedDataResult)
+      await writeJobSummary(limitedDataResult, baseConfig)
 
       expect(core.summary.addRaw).toHaveBeenCalledWith(expect.stringContaining('Limited contribution data'))
     })
@@ -369,7 +400,7 @@ describe('Output Formatter', () => {
         isNewAccount: true
       }
 
-      await writeJobSummary(result)
+      await writeJobSummary(result, baseConfig)
 
       const addRawCalls = (core.summary.addRaw as jest.MockedFunction<typeof core.summary.addRaw>).mock.calls
       const hasLimitedDataNote = addRawCalls.some((call) => (call[0] as string).includes('Limited contribution data'))
@@ -383,13 +414,13 @@ describe('Output Formatter', () => {
         recommendations: []
       }
 
-      await writeJobSummary(passedResult)
+      await writeJobSummary(passedResult, baseConfig)
 
       expect(core.summary.addList).not.toHaveBeenCalled()
     })
 
     it('includes metric table with documentation links', async () => {
-      await writeJobSummary(baseResult)
+      await writeJobSummary(baseResult, baseConfig)
 
       const tableCall = (core.summary.addTable as jest.MockedFunction<typeof core.summary.addTable>).mock.calls[0]
       const tableData = tableCall[0]

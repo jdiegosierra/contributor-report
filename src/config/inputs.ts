@@ -3,7 +3,13 @@
  */
 
 import * as core from '@actions/core'
-import type { ContributorQualityConfig, MetricThresholds, FailAction, NewAccountAction } from '../types/config.js'
+import type {
+  ContributorQualityConfig,
+  MetricThresholds,
+  FailAction,
+  NewAccountAction,
+  VerboseDetailsLevel
+} from '../types/config.js'
 import { DEFAULT_CONFIG, mergeThresholds, validateThresholds, validateRequiredMetrics } from './defaults.js'
 
 /** Parse comma-separated string into array */
@@ -48,6 +54,16 @@ function validateNewAccountAction(action: string): NewAccountAction {
   }
   core.warning(`Invalid new-account-action value: ${action}. Using 'neutral'.`)
   return 'neutral'
+}
+
+/** Validate verbose details level */
+function validateVerboseDetails(level: string): VerboseDetailsLevel {
+  const valid: VerboseDetailsLevel[] = ['none', 'failed', 'all']
+  if (valid.includes(level as VerboseDetailsLevel)) {
+    return level as VerboseDetailsLevel
+  }
+  core.warning(`Invalid verbose-details value: ${level}. Using 'none'.`)
+  return 'none'
 }
 
 /** Parse integer with validation */
@@ -240,6 +256,9 @@ export function parseInputs(): ContributorQualityConfig {
       ? DEFAULT_CONFIG.enableSpamDetection
       : enableSpamDetectionInput.toLowerCase() !== 'false'
 
+  const verboseDetailsInput = core.getInput('verbose-details')
+  const verboseDetails = validateVerboseDetails(verboseDetailsInput || DEFAULT_CONFIG.verboseDetails)
+
   const config: ContributorQualityConfig = {
     githubToken,
     thresholds,
@@ -253,7 +272,8 @@ export function parseInputs(): ContributorQualityConfig {
     dryRun,
     newAccountAction,
     newAccountThresholdDays,
-    enableSpamDetection
+    enableSpamDetection,
+    verboseDetails
   }
 
   // Validate all config values

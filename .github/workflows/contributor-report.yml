@@ -33,3 +33,4 @@ jobs:
           on-fail: comment
           dry-run: false
           trusted-users: dependabot[bot],renovate[bot]
+          verbose-details: 'all'
