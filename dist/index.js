@@ -35201,13 +35201,14 @@ function generateAnalysisComment(result, config) {
     // Metric results table
     lines.push('### Metric Results');
     lines.push('');
-    lines.push('| Metric | Value | Threshold | Status |');
-    lines.push('|--------|-------|-----------|--------|');
+    lines.push('| Metric | Description | Value | Threshold | Status |');
+    lines.push('|--------|-------------|-------|-----------|--------|');
     for (const metric of result.metrics) {
         const statusIcon = metric.passed ? '✅' : '❌';
         const formattedValue = formatMetricValue(metric);
         const formattedThreshold = formatThreshold(metric);
-        lines.push(`| ${formatMetricName$1(metric.name)} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
+        const description = getMetricDescription$1(metric.name);
+        lines.push(`| ${formatMetricName$1(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
     }
     lines.push('');
     // Recommendations (only if there are failed metrics)
@@ -35276,27 +35277,84 @@ function formatThreshold(metric) {
  * Format metric name for display with documentation link
  */
 function formatMetricName$1(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
     const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
-        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
-        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
-        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
-        accountAge: { display: 'Account Age', anchor: 'account-age' },
-        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
-        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' },
-        mergerDiversity: { display: 'Merger Diversity', anchor: 'merger-diversity' },
-        repoHistoryMergeRate: { display: 'Repo History Merge Rate', anchor: 'repo-history' },
-        repoHistoryMinPRs: { display: 'Repo History Min PRs', anchor: 'repo-history' },
-        profileCompleteness: { display: 'Profile Completeness', anchor: 'profile-completeness' },
-        suspiciousPatterns: { display: 'Suspicious Patterns', anchor: 'suspicious-patterns' }
+        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md', description: 'PRs merged vs closed' },
+        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md', description: 'Contributions to starred repos' },
+        positiveReactions: {
+            display: 'Positive Reactions',
+            file: 'positive-reactions.md',
+            description: 'Positive reactions received'
+        },
+        negativeReactions: {
+            display: 'Negative Reactions',
+            file: 'negative-reactions.md',
+            description: 'Negative reactions received'
+        },
+        accountAge: { display: 'Account Age', file: 'account-age.md', description: 'GitHub account age' },
+        activityConsistency: {
+            display: 'Activity Consistency',
+            file: 'activity-consistency.md',
+            description: 'Regular activity over time'
+        },
+        issueEngagement: {
+            display: 'Issue Engagement',
+            file: 'issue-engagement.md',
+            description: 'Issues with community engagement'
+        },
+        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md', description: 'Code reviews given to others' },
+        mergerDiversity: {
+            display: 'Merger Diversity',
+            file: 'merger-diversity.md',
+            description: 'Unique maintainers who merged PRs'
+        },
+        repoHistoryMergeRate: {
+            display: 'Repo History Merge Rate',
+            file: 'repo-history.md',
+            description: 'Merge rate in this repo'
+        },
+        repoHistoryMinPRs: {
+            display: 'Repo History Min PRs',
+            file: 'repo-history.md',
+            description: 'Previous PRs in this repo'
+        },
+        profileCompleteness: {
+            display: 'Profile Completeness',
+            file: 'profile-completeness.md',
+            description: 'Profile richness (bio, followers)'
+        },
+        suspiciousPatterns: {
+            display: 'Suspicious Patterns',
+            file: 'suspicious-patterns.md',
+            description: 'Spam-like activity detection'
+        }
     };
     const info = metricInfo[name];
     if (info) {
-        return `[${info.display}](${BASE_URL}${info.anchor})`;
+        return `[${info.display}](${BASE_URL}${info.file})`;
     }
     return name;
+}
+/**
+ * Get metric description for display
+ */
+function getMetricDescription$1(name) {
+    const descriptions = {
+        prMergeRate: 'PRs merged vs closed',
+        repoQuality: 'Contributions to starred repos',
+        positiveReactions: 'Positive reactions received',
+        negativeReactions: 'Negative reactions received',
+        accountAge: 'GitHub account age',
+        activityConsistency: 'Regular activity over time',
+        issueEngagement: 'Issues with community engagement',
+        codeReviews: 'Code reviews given to others',
+        mergerDiversity: 'Unique maintainers who merged PRs',
+        repoHistoryMergeRate: 'Merge rate in this repo',
+        repoHistoryMinPRs: 'Previous PRs in this repo',
+        profileCompleteness: 'Profile richness (bio, followers)',
+        suspiciousPatterns: 'Spam-like activity detection'
+    };
+    return descriptions[name] || '';
 }
 
 /**
@@ -35419,12 +35477,14 @@ async function writeJobSummary(result) {
     summary.addHeading('Metric Results', 3).addTable([
         [
             { data: 'Metric', header: true },
+            { data: 'Description', header: true },
             { data: 'Value', header: true },
             { data: 'Threshold', header: true },
             { data: 'Status', header: true }
         ],
         ...result.metrics.map((m) => [
             formatMetricName(m.name),
+            getMetricDescription(m.name),
             formatValueForLog(m),
             formatThresholdForLog(m),
             m.passed ? '✅' : '❌'
@@ -35443,27 +35503,48 @@ async function writeJobSummary(result) {
  * Format metric name for display with documentation link
  */
 function formatMetricName(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
     const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
-        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
-        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
-        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
-        accountAge: { display: 'Account Age', anchor: 'account-age' },
-        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
-        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' },
-        mergerDiversity: { display: 'Merger Diversity', anchor: 'merger-diversity' },
-        repoHistoryMergeRate: { display: 'Repo History Merge Rate', anchor: 'repo-history' },
-        repoHistoryMinPRs: { display: 'Repo History Min PRs', anchor: 'repo-history' },
-        profileCompleteness: { display: 'Profile Completeness', anchor: 'profile-completeness' },
-        suspiciousPatterns: { display: 'Suspicious Patterns', anchor: 'suspicious-patterns' }
+        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
+        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
+        positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
+        negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
+        accountAge: { display: 'Account Age', file: 'account-age.md' },
+        activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
+        issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
+        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
+        mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
+        repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
+        repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
+        profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
+        suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
     };
     const info = metricInfo[name];
     if (info) {
-        return `[${info.display}](${BASE_URL}${info.anchor})`;
+        return `[${info.display}](${BASE_URL}${info.file})`;
     }
     return name;
+}
+/**
+ * Get metric description for display
+ */
+function getMetricDescription(name) {
+    const descriptions = {
+        prMergeRate: 'PRs merged vs closed',
+        repoQuality: 'Contributions to starred repos',
+        positiveReactions: 'Positive reactions received',
+        negativeReactions: 'Negative reactions received',
+        accountAge: 'GitHub account age',
+        activityConsistency: 'Regular activity over time',
+        issueEngagement: 'Issues with community engagement',
+        codeReviews: 'Code reviews given to others',
+        mergerDiversity: 'Unique maintainers who merged PRs',
+        repoHistoryMergeRate: 'Merge rate in this repo',
+        repoHistoryMinPRs: 'Previous PRs in this repo',
+        profileCompleteness: 'Profile richness (bio, followers)',
+        suspiciousPatterns: 'Spam-like activity detection'
+    };
+    return descriptions[name] || '';
 }
 /**
  * Write whitelisted user summary to GitHub Job Summary

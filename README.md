@@ -102,215 +102,23 @@ metrics** so maintainers can make informed decisions. It's the difference betwee
 
 ### Metrics
 
-| Metric               | Description                                     | Default Threshold |
-| -------------------- | ----------------------------------------------- | ----------------- |
-| PR Merge Rate        | Percentage of PRs that get merged vs closed     | >= 0%             |
-| Account Age          | Age of the GitHub account                       | >= 0 days         |
-| Positive Reactions   | Positive reactions received on comments/issues  | >= 0              |
-| Negative Reactions   | Negative reactions received (maximum allowed)   | <= 0              |
-| Repo Quality         | Contributions to repos with stars               | >= 0              |
-| Activity Consistency | Regular activity over time                      | >= 0%             |
-| Issue Engagement     | Issues created that receive engagement          | >= 0              |
-| Code Reviews         | Code reviews given to others                    | >= 0              |
-| Merger Diversity     | Unique maintainers who merged contributor's PRs | >= 0              |
-| Repo History         | Track record in the specific repository         | >= 0              |
-| Profile Completeness | GitHub profile richness (bio, followers, etc.)  | >= 0              |
-| Suspicious Patterns  | Detection of spam-like activity patterns        | N/A (auto)        |
-
-## Metric Details
-
-### PR Merge Rate
-
-**What it measures:** The percentage of pull requests that get successfully merged versus those that are closed without
-merging.
-
-**Why it matters:** A low merge rate may indicate low-quality contributions, PRs that don't follow project guidelines,
-or spam submissions. Contributors with consistently merged PRs demonstrate they understand project requirements and
-deliver valuable contributions.
-
-**How it's calculated:** (Merged PRs / Total PRs) × 100. Only PRs from the configured analysis window are considered.
-
-**How to improve:**
-
-- Review contribution guidelines before submitting PRs
-- Start with smaller, focused changes
-- Respond to review feedback promptly
-- Ensure tests pass before submitting
-
-### Account Age
-
-**What it measures:** How long the GitHub account has existed (in days).
-
-**Why it matters:** Very new accounts (< 30 days) submitting PRs may warrant additional scrutiny, as they're sometimes
-associated with spam campaigns or AI-generated contributions. However, everyone starts somewhere, so this metric should
-be used thoughtfully.
-
-**How it's calculated:** Days between account creation date and current date.
-
-**How to improve:** This metric improves naturally over time as your account ages.
-
-### Positive Reactions
-
-**What it measures:** The total number of positive reactions (👍, ❤️, 🎉, 🚀) received on your comments, issues, and PR
-reviews.
-
-**Why it matters:** Positive community engagement indicates that your contributions are helpful and well-received. This
-metric reflects how you interact with others in the community.
-
-**How it's calculated:** Sum of all positive reaction types across your comments, issues, and PR reviews.
-
-**How to improve:**
-
-- Provide helpful, constructive feedback in code reviews
-- Write clear, detailed issue reports
-- Share useful insights in discussions
-- Be respectful and supportive of other contributors
-
-### Negative Reactions
-
-**What it measures:** The total number of negative reactions (👎, 😕) received on your comments, issues, and PR reviews.
-
-**Why it matters:** A high number of negative reactions may indicate problematic behavior, unhelpful contributions, or
-communication issues. This is a maximum threshold - you should stay below it.
-
-**How it's calculated:** Sum of negative reaction types (👎, 😕) across your comments, issues, and PR reviews.
-
-**How to improve:**
-
-- Be respectful and constructive in all interactions
-- Avoid spam or low-effort comments
-- Focus on helpful, relevant contributions
-- Follow project codes of conduct
-
-### Repo Quality
-
-**What it measures:** The number of repositories (with a minimum star count) where you've had PRs successfully merged.
-
-**Why it matters:** Contributing to established, popular repositories demonstrates that you can meet higher quality
-standards and work with larger communities. It helps distinguish between genuine contributors and spam accounts.
-
-**How it's calculated:** Count of unique repositories (meeting the minimum stars threshold) where you have merged PRs.
-Default minimum is 100 stars, but this is configurable.
-
-**How to improve:**
-
-- Contribute to well-maintained open source projects
-- Focus on quality over quantity
-- Build a track record with established projects
-- Find projects that align with your interests and skills
-
-### Activity Consistency
-
-**What it measures:** How regularly you're active on GitHub over the analysis period.
-
-**Why it matters:** Consistent activity over time indicates a genuine contributor rather than a temporary or spam
-account. Real developers typically have ongoing GitHub activity, while spam accounts often show sudden bursts of
-activity.
-
-**How it's calculated:** Percentage of months (within the analysis window) where you had at least one contribution (PR,
-issue, or review).
-
-**How to improve:**
-
-- Contribute regularly to projects you care about
-- Maintain consistent involvement over time
-- Even small contributions help demonstrate consistency
-
-### Issue Engagement
-
-**What it measures:** The number of issues you've created that received community engagement (comments from others).
-
-**Why it matters:** Creating issues that spark discussion shows you're identifying real problems and communicating them
-effectively. Engaged issues indicate thoughtful contributions rather than spam.
-
-**How it's calculated:** Count of issues you've created that have at least one comment from another user.
-
-**How to improve:**
-
-- Create well-researched, detailed issue reports
-- Provide clear reproduction steps for bugs
-- Propose thoughtful feature requests with use cases
-- Engage constructively in issue discussions
-
-### Code Reviews
-
-**What it measures:** The number of meaningful code reviews you've provided on other people's pull requests.
-
-**Why it matters:** Providing code reviews demonstrates engagement with the community and technical understanding.
-Reviewers who help others improve their code are valuable contributors. Spam accounts rarely engage in code review.
-
-**How it's calculated:** Count of non-trivial review comments you've made on PRs (excluding your own PRs).
-
-**How to improve:**
-
-- Review PRs in projects you're familiar with
-- Provide constructive, helpful feedback
-- Look for opportunities to help other contributors
-- Share your knowledge and expertise
-
-### Merger Diversity
-
-**What it measures:** The number of unique maintainers who have merged the contributor's pull requests.
-
-**Why it matters:** Having PRs merged by different maintainers across various projects demonstrates trust from the
-community. Contributors who only self-merge their own PRs on their own repositories haven't demonstrated external trust.
-
-**How it's calculated:** Count of unique GitHub users who merged the contributor's PRs. Self-merges on own repositories
-are tracked separately.
-
-**How to improve:**
-
-- Contribute to established projects where maintainers review and merge your work
-- Build relationships with project maintainers
-- Focus on quality contributions that get merged by others
-
-### Repo History
-
-**What it measures:** The contributor's track record in the specific repository receiving the PR.
-
-**Why it matters:** A history of successful contributions to a repository indicates familiarity with its codebase,
-contribution guidelines, and maintainer expectations.
-
-**How it's calculated:** Merge rate and PR count specifically for the target repository.
-
-**How to improve:**
-
-- Start with smaller contributions to build trust
-- Follow the project's contribution guidelines carefully
-- Respond to reviewer feedback promptly
-
-### Profile Completeness
-
-**What it measures:** How complete the contributor's GitHub profile is (bio, company, followers, public repos).
-
-**Why it matters:** A complete profile indicates a legitimate, invested GitHub user. Spam accounts typically have
-minimal or no profile information.
-
-**How it's calculated:** Score based on presence of bio (20 points), company (20 points), followers (up to 40 points),
-and public repositories (up to 20 points).
-
-**How to improve:**
-
-- Add a bio describing yourself and your interests
-- Fill in your company or affiliation
-- Engage with the community to gain followers
-- Create and maintain public repositories
-
-### Suspicious Patterns
-
-**What it measures:** Detection of activity patterns commonly associated with spam accounts.
-
-**Why it matters:** Certain combinations of behaviors (new account + high PR volume + many repos) are strong indicators
-of automated spam.
-
-**Patterns detected:**
-
-- **SPAM_PATTERN:** New account (<30 days) with >25 PRs across >10 repositories
-- **HIGH_PR_RATE:** More than 2 PRs per day on average
-- **SELF_MERGE_ABUSE:** High rate of self-merges on low-quality repositories
-- **REPO_SPAM:** Contributions to many repos with very low star counts
-
-**Note:** This metric cannot be configured with a threshold. Critical patterns cause automatic failure.
+| Metric                                                       | Description                                     | Default Threshold |
+| ------------------------------------------------------------ | ----------------------------------------------- | ----------------- |
+| [PR Merge Rate](docs/metrics/pr-merge-rate.md)               | Percentage of PRs that get merged vs closed     | >= 0%             |
+| [Account Age](docs/metrics/account-age.md)                   | Age of the GitHub account                       | >= 0 days         |
+| [Positive Reactions](docs/metrics/positive-reactions.md)     | Positive reactions received on comments/issues  | >= 0              |
+| [Negative Reactions](docs/metrics/negative-reactions.md)     | Negative reactions received (maximum allowed)   | <= 0              |
+| [Repo Quality](docs/metrics/repo-quality.md)                 | Contributions to repos with stars               | >= 0              |
+| [Activity Consistency](docs/metrics/activity-consistency.md) | Regular activity over time                      | >= 0%             |
+| [Issue Engagement](docs/metrics/issue-engagement.md)         | Issues created that receive engagement          | >= 0              |
+| [Code Reviews](docs/metrics/code-reviews.md)                 | Code reviews given to others                    | >= 0              |
+| [Merger Diversity](docs/metrics/merger-diversity.md)         | Unique maintainers who merged contributor's PRs | >= 0              |
+| [Repo History](docs/metrics/repo-history.md)                 | Track record in the specific repository         | >= 0              |
+| [Profile Completeness](docs/metrics/profile-completeness.md) | GitHub profile richness (bio, followers, etc.)  | >= 0              |
+| [Suspicious Patterns](docs/metrics/suspicious-patterns.md)   | Detection of spam-like activity patterns        | N/A (auto)        |
+
+> **Learn more:** See the [Metric Documentation](docs/metrics/) for detailed explanations of each metric, including how
+> they're calculated and how to improve them.
 
 ## Usage
 

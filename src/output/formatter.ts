@@ -144,12 +144,14 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
   core.summary.addHeading('Metric Results', 3).addTable([
     [
       { data: 'Metric', header: true },
+      { data: 'Description', header: true },
       { data: 'Value', header: true },
       { data: 'Threshold', header: true },
       { data: 'Status', header: true }
     ],
     ...result.metrics.map((m) => [
       formatMetricName(m.name),
+      getMetricDescription(m.name),
       formatValueForLog(m),
       formatThresholdForLog(m),
       m.passed ? '✅' : '❌'
@@ -173,30 +175,53 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
  * Format metric name for display with documentation link
  */
 function formatMetricName(name: string): string {
-  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#'
+  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/'
 
-  const metricInfo: Record<string, { display: string; anchor: string }> = {
-    prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
-    repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
-    positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
-    negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
-    accountAge: { display: 'Account Age', anchor: 'account-age' },
-    activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
-    issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-    codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' },
-    mergerDiversity: { display: 'Merger Diversity', anchor: 'merger-diversity' },
-    repoHistoryMergeRate: { display: 'Repo History Merge Rate', anchor: 'repo-history' },
-    repoHistoryMinPRs: { display: 'Repo History Min PRs', anchor: 'repo-history' },
-    profileCompleteness: { display: 'Profile Completeness', anchor: 'profile-completeness' },
-    suspiciousPatterns: { display: 'Suspicious Patterns', anchor: 'suspicious-patterns' }
+  const metricInfo: Record<string, { display: string; file: string }> = {
+    prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
+    repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
+    positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
+    negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
+    accountAge: { display: 'Account Age', file: 'account-age.md' },
+    activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
+    issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
+    codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
+    mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
+    repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
+    repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
+    profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
+    suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
   }
 
   const info = metricInfo[name]
   if (info) {
-    return `[${info.display}](${BASE_URL}${info.anchor})`
+    return `[${info.display}](${BASE_URL}${info.file})`
   }
 
   return name
+}
+
+/**
+ * Get metric description for display
+ */
+function getMetricDescription(name: string): string {
+  const descriptions: Record<string, string> = {
+    prMergeRate: 'PRs merged vs closed',
+    repoQuality: 'Contributions to starred repos',
+    positiveReactions: 'Positive reactions received',
+    negativeReactions: 'Negative reactions received',
+    accountAge: 'GitHub account age',
+    activityConsistency: 'Regular activity over time',
+    issueEngagement: 'Issues with community engagement',
+    codeReviews: 'Code reviews given to others',
+    mergerDiversity: 'Unique maintainers who merged PRs',
+    repoHistoryMergeRate: 'Merge rate in this repo',
+    repoHistoryMinPRs: 'Previous PRs in this repo',
+    profileCompleteness: 'Profile richness (bio, followers)',
+    suspiciousPatterns: 'Spam-like activity detection'
+  }
+
+  return descriptions[name] || ''
 }
 
 /**
