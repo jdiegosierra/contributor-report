@@ -173,7 +173,7 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
  * Format metric name for display with documentation link
  */
 function formatMetricName(name: string): string {
-  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report#'
+  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#'
 
   const metricInfo: Record<string, { display: string; anchor: string }> = {
     prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },

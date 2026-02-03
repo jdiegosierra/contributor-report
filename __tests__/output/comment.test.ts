@@ -82,7 +82,9 @@ describe('Comment Generation', () => {
       expect(comment).toContain('**Status:** Passed (8/8 metrics passed)')
       expect(comment).toContain('### Metric Results')
       expect(comment).toContain('| Metric | Value | Threshold | Status |')
-      expect(comment).toContain('[PR Merge Rate](https://github.com/jdiegosierra/contributor-report#pr-merge-rate)')
+      expect(comment).toContain(
+        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#pr-merge-rate)'
+      )
       expect(comment).toContain('80%')
       expect(comment).toContain('>= 50%')
       expect(comment).toContain('Analysis period: 2025-01-01 to 2026-01-01')
@@ -288,14 +290,14 @@ describe('Comment Generation', () => {
       const comment = generateAnalysisComment(baseResult, baseConfig)
 
       const expectedLinks = [
-        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report#pr-merge-rate)',
-        '[Repo Quality](https://github.com/jdiegosierra/contributor-report#repo-quality)',
-        '[Positive Reactions](https://github.com/jdiegosierra/contributor-report#positive-reactions)',
-        '[Negative Reactions](https://github.com/jdiegosierra/contributor-report#negative-reactions)',
-        '[Account Age](https://github.com/jdiegosierra/contributor-report#account-age)',
-        '[Activity Consistency](https://github.com/jdiegosierra/contributor-report#activity-consistency)',
-        '[Issue Engagement](https://github.com/jdiegosierra/contributor-report#issue-engagement)',
-        '[Code Reviews](https://github.com/jdiegosierra/contributor-report#code-reviews)'
+        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#pr-merge-rate)',
+        '[Repo Quality](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#repo-quality)',
+        '[Positive Reactions](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#positive-reactions)',
+        '[Negative Reactions](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#negative-reactions)',
+        '[Account Age](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#account-age)',
+        '[Activity Consistency](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#activity-consistency)',
+        '[Issue Engagement](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#issue-engagement)',
+        '[Code Reviews](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#code-reviews)'
       ]
 
       expectedLinks.forEach((link) => {
