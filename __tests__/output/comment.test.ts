@@ -83,7 +83,7 @@ describe('Comment Generation', () => {
       expect(comment).toContain('### Metric Results')
       expect(comment).toContain('| Metric | Value | Threshold | Status |')
       expect(comment).toContain(
-        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#pr-merge-rate)'
+        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#pr-merge-rate)'
       )
       expect(comment).toContain('80%')
       expect(comment).toContain('>= 50%')
@@ -290,14 +290,14 @@ describe('Comment Generation', () => {
       const comment = generateAnalysisComment(baseResult, baseConfig)
 
       const expectedLinks = [
-        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#pr-merge-rate)',
-        '[Repo Quality](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#repo-quality)',
-        '[Positive Reactions](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#positive-reactions)',
-        '[Negative Reactions](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#negative-reactions)',
-        '[Account Age](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#account-age)',
-        '[Activity Consistency](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#activity-consistency)',
-        '[Issue Engagement](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#issue-engagement)',
-        '[Code Reviews](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#code-reviews)'
+        '[PR Merge Rate](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#pr-merge-rate)',
+        '[Repo Quality](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#repo-quality)',
+        '[Positive Reactions](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#positive-reactions)',
+        '[Negative Reactions](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#negative-reactions)',
+        '[Account Age](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#account-age)',
+        '[Activity Consistency](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#activity-consistency)',
+        '[Issue Engagement](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#issue-engagement)',
+        '[Code Reviews](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#code-reviews)'
       ]
 
       expectedLinks.forEach((link) => {
