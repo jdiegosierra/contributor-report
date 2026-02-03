@@ -382,7 +382,7 @@ describe('Output Formatter', () => {
       const metricNames = tableData.slice(1).map((row) => row[0])
       metricNames.forEach((name) => {
         expect(name).toContain('[')
-        expect(name).toContain('](https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#')
+        expect(name).toContain('](https://github.com/jdiegosierra/contributor-report/blob/main/README.md#')
       })
     })
   })

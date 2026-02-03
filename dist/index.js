@@ -34570,7 +34570,7 @@ function formatThreshold(metric) {
  * Format metric name for display with documentation link
  */
 function formatMetricName$1(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
     const metricInfo = {
         prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
         repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
@@ -34732,7 +34732,7 @@ async function writeJobSummary(result) {
  * Format metric name for display with documentation link
  */
 function formatMetricName(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report?tab=readme-ov-file#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
     const metricInfo = {
         prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
         repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
