@@ -138,6 +138,11 @@ function formatMetricValue(metric: MetricCheckResult): string {
  * Format threshold for display
  */
 function formatThreshold(metric: MetricCheckResult): string {
+  // Suspicious patterns has no configurable threshold
+  if (metric.name === 'suspiciousPatterns') {
+    return 'N/A'
+  }
+
   // For negative reactions, it's a maximum (<=)
   if (metric.name === 'negativeReactions') {
     return `<= ${metric.threshold}`

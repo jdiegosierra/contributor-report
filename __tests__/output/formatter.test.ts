@@ -295,6 +295,22 @@ describe('Output Formatter', () => {
       })
       expect(hasCorrectFormat).toBe(true)
     })
+
+    it('formats suspicious patterns threshold as N/A in logs', () => {
+      const result: AnalysisResult = {
+        ...baseResult,
+        metrics: [createMetric('suspiciousPatterns', 0, 0, true)]
+      }
+
+      logResultSummary(result)
+
+      const infoCalls = (core.info as jest.MockedFunction<typeof core.info>).mock.calls
+      const hasCorrectFormat = infoCalls.some((call) => {
+        const str = call[0] as string
+        return str.includes('N/A')
+      })
+      expect(hasCorrectFormat).toBe(true)
+    })
   })
 
   describe('writeJobSummary', () => {

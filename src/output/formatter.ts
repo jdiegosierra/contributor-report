@@ -253,6 +253,9 @@ function formatValueForLog(metric: { name: string; rawValue: number }): string {
  * Format threshold for log display
  */
 function formatThresholdForLog(metric: { name: string; threshold: number }): string {
+  if (metric.name === 'suspiciousPatterns') {
+    return 'N/A'
+  }
   if (metric.name === 'negativeReactions') {
     return `<= ${metric.threshold}`
   }

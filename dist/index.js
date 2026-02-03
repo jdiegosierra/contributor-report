@@ -35256,6 +35256,10 @@ function formatMetricValue(metric) {
  * Format threshold for display
  */
 function formatThreshold(metric) {
+    // Suspicious patterns has no configurable threshold
+    if (metric.name === 'suspiciousPatterns') {
+        return 'N/A';
+    }
     // For negative reactions, it's a maximum (<=)
     if (metric.name === 'negativeReactions') {
         return `<= ${metric.threshold}`;
@@ -35571,6 +35575,9 @@ function formatValueForLog(metric) {
  * Format threshold for log display
  */
 function formatThresholdForLog(metric) {
+    if (metric.name === 'suspiciousPatterns') {
+        return 'N/A';
+    }
     if (metric.name === 'negativeReactions') {
         return `<= ${metric.threshold}`;
     }
