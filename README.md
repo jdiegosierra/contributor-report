@@ -23,23 +23,14 @@ When a PR is opened, this action:
 
 1. Fetches the contributor's GitHub activity from the past 12 months
 2. Evaluates each metric against configurable thresholds
-3. Generates a detailed report with metric breakdown and recommendations
-4. Posts the report as a PR comment (or labels/fails based on configuration)
+3. Generates a detailed report as a PR comment with:
+   - ✅/❌ Overall status indicator
+   - Individual metric results in a table format
+   - Pass/fail status for each metric with thresholds
+   - Personalized recommendations for improvement
+   - Special handling for new accounts and limited data
 
-> [!TIP] **See it in action:** Check out [PR #5](https://github.com/jdiegosierra/contributor-report/pull/5) for a live
-> example of the Contributor Report in action, showing the detailed analysis and report format.
-
-## Report Example
-
-The action posts a detailed comment on each PR with:
-
-- ✅/❌ Overall status indicator
-- Individual metric results in a table format
-- Pass/fail status for each metric with thresholds
-- Personalized recommendations for improvement
-- Special handling for new accounts and limited data
-
-Example report:
+**Example report:**
 
 ```markdown
 ## ✅ Contributor Report
@@ -63,6 +54,9 @@ Example report:
 
 - Consider reviewing code from other contributors to build reputation
 ```
+
+> [!TIP] **See it in action:** Check out [PR #5](https://github.com/jdiegosierra/contributor-report/pull/5) for a live
+> example of the Contributor Report in action.
 
 ## Why Reports Instead of Scores?
 
