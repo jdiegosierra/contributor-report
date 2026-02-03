@@ -478,5 +478,149 @@ describe('Evaluation Engine', () => {
       // Should have the positiveReactions specific recommendation
       expect(recommendations.some((r) => r.toLowerCase().includes('engage'))).toBe(true)
     })
+
+    it('recommends focusing on constructive communication for failed negativeReactions', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 5, negative: 3, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 0, totalStarredContributions: 0 },
+        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        { name: 'negativeReactions', rawValue: 3, threshold: 0, passed: false, details: 'Too many', dataPoints: 10 }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('constructive communication'))).toBe(true)
+    })
+
+    it('recommends continuing building history for failed accountAge', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 20, monthsWithActivity: 1, totalMonthsInWindow: 1, consistencyRate: 1.0 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        { name: 'accountAge', rawValue: 20, threshold: 30, passed: false, details: 'New account', dataPoints: 10 }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('continue building'))).toBe(true)
+      expect(recommendations.some((r) => r.toLowerCase().includes('new accounts'))).toBe(true)
+    })
+
+    it('recommends maintaining consistency for failed activityConsistency with old account', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 120, monthsWithActivity: 2, totalMonthsInWindow: 12, consistencyRate: 0.16 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'activityConsistency',
+          rawValue: 0.16,
+          threshold: 0.3,
+          passed: false,
+          details: 'Inconsistent',
+          dataPoints: 10
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('maintain consistent activity'))).toBe(true)
+    })
+
+    it('does not recommend consistency for new accounts (<90 days) with failed activityConsistency', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 60, monthsWithActivity: 1, totalMonthsInWindow: 2, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'activityConsistency',
+          rawValue: 0.5,
+          threshold: 0.7,
+          passed: false,
+          details: 'Inconsistent',
+          dataPoints: 10
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      // Should not have specific consistency recommendation for accounts < 90 days
+      expect(recommendations.some((r) => r.toLowerCase().includes('maintain consistent activity'))).toBe(false)
+    })
+
+    it('recommends creating issues for failed issueEngagement', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 0,
+          issuesWithComments: 0,
+          issuesWithReactions: 0,
+          averageCommentsPerIssue: 0
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'issueEngagement',
+          rawValue: 0,
+          threshold: 1,
+          passed: false,
+          details: 'No issues',
+          dataPoints: 0
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('create issues'))).toBe(true)
+      expect(recommendations.some((r) => r.toLowerCase().includes('report bugs or suggest features'))).toBe(true)
+    })
   })
 })
