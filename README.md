@@ -1,6 +1,9 @@
 # Contributor Report
 
 [![CI](https://github.com/jdiegosierra/contributor-report/actions/workflows/ci.yml/badge.svg)](https://github.com/jdiegosierra/contributor-report/actions/workflows/ci.yml)
+[![Linter](https://github.com/jdiegosierra/contributor-report/actions/workflows/linter.yml/badge.svg)](https://github.com/jdiegosierra/contributor-report/actions/workflows/linter.yml)
+[![Check dist/](https://github.com/jdiegosierra/contributor-report/actions/workflows/check-dist.yml/badge.svg)](https://github.com/jdiegosierra/contributor-report/actions/workflows/check-dist.yml)
+[![CodeQL](https://github.com/jdiegosierra/contributor-report/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/jdiegosierra/contributor-report/actions/workflows/codeql-analysis.yml)
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
