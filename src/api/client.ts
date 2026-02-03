@@ -86,7 +86,7 @@ export class GitHubClient {
     // Build issue search query to find issues created by user
     // Using ISSUE_ADVANCED type with is:issue to properly filter out PRs
     const issueSearchQuery = `author:${username} is:issue created:>=${sinceDate.toISOString().split('T')[0]}`
-    console.log(`[DEBUG] Issue search query: ${issueSearchQuery}`)
+    core.debug(`Issue search query: ${issueSearchQuery}`)
 
     const result = await this.executeGraphQL<GraphQLContributorData>(CONTRIBUTOR_DATA_QUERY, {
       username,
@@ -100,13 +100,13 @@ export class GitHubClient {
       throw new Error(`User not found: ${username}`)
     }
 
-    console.log(
-      `[DEBUG] Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`
+    core.debug(
+      `Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`
     )
     if (result.issueSearch?.nodes?.length) {
       for (const node of result.issueSearch.nodes) {
-        console.log(
-          `[DEBUG] Node: __typename=${(node as { __typename?: string }).__typename}, keys=${Object.keys(node).join(',')}`
+        core.debug(
+          `Node: __typename=${(node as { __typename?: string }).__typename}, keys=${Object.keys(node).join(',')}`
         )
       }
     }
@@ -239,6 +239,10 @@ export class GitHubClient {
         }
       }>(RATE_LIMIT_QUERY, {})
 
+      if (!result || !result.rateLimit) {
+        return null
+      }
+
       return parseRateLimit(result.rateLimit)
     } catch {
       return null
@@ -283,7 +287,7 @@ export class GitHubClient {
           comment_id: existingComment.id,
           body
         })
-        core.info('Updated existing quality check comment')
+        core.info('Updated existing report comment')
       } else {
         // Create new comment
         await this.octokit.rest.issues.createComment({
@@ -292,7 +296,7 @@ export class GitHubClient {
           issue_number: context.prNumber,
           body
         })
-        core.info('Created new quality check comment')
+        core.info('Created new report comment')
       }
     })
   }

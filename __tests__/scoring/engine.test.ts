@@ -6,7 +6,8 @@ import {
   extractAllMetrics,
   checkAllMetrics,
   determinePassStatus,
-  generateRecommendations
+  generateRecommendations,
+  evaluateContributor
 } from '../../src/scoring/engine.js'
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js'
 import type { GraphQLContributorData } from '../../src/types/github.js'
@@ -477,6 +478,472 @@ describe('Evaluation Engine', () => {
 
       // Should have the positiveReactions specific recommendation
       expect(recommendations.some((r) => r.toLowerCase().includes('engage'))).toBe(true)
+    })
+
+    it('recommends focusing on constructive communication for failed negativeReactions', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 5, negative: 3, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 0, totalStarredContributions: 0 },
+        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        { name: 'negativeReactions', rawValue: 3, threshold: 0, passed: false, details: 'Too many', dataPoints: 10 }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('constructive communication'))).toBe(true)
+    })
+
+    it('recommends continuing building history for failed accountAge', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 20, monthsWithActivity: 1, totalMonthsInWindow: 1, consistencyRate: 1.0 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        { name: 'accountAge', rawValue: 20, threshold: 30, passed: false, details: 'New account', dataPoints: 10 }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('continue building'))).toBe(true)
+      expect(recommendations.some((r) => r.toLowerCase().includes('new accounts'))).toBe(true)
+    })
+
+    it('recommends maintaining consistency for failed activityConsistency with old account', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 120, monthsWithActivity: 2, totalMonthsInWindow: 12, consistencyRate: 0.16 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'activityConsistency',
+          rawValue: 0.16,
+          threshold: 0.3,
+          passed: false,
+          details: 'Inconsistent',
+          dataPoints: 10
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('maintain consistent activity'))).toBe(true)
+    })
+
+    it('does not recommend consistency for new accounts (<90 days) with failed activityConsistency', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 60, monthsWithActivity: 1, totalMonthsInWindow: 2, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 5,
+          issuesWithComments: 3,
+          issuesWithReactions: 2,
+          averageCommentsPerIssue: 2
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'activityConsistency',
+          rawValue: 0.5,
+          threshold: 0.7,
+          passed: false,
+          details: 'Inconsistent',
+          dataPoints: 10
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      // Should not have specific consistency recommendation for accounts < 90 days
+      expect(recommendations.some((r) => r.toLowerCase().includes('maintain consistent activity'))).toBe(false)
+    })
+
+    it('recommends creating issues for failed issueEngagement', () => {
+      const metricsData: AllMetricsData = {
+        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
+        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
+        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
+        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        issueEngagement: {
+          issuesCreated: 0,
+          issuesWithComments: 0,
+          issuesWithReactions: 0,
+          averageCommentsPerIssue: 0
+        },
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+      }
+
+      const metrics: MetricCheckResult[] = [
+        {
+          name: 'issueEngagement',
+          rawValue: 0,
+          threshold: 1,
+          passed: false,
+          details: 'No issues',
+          dataPoints: 0
+        }
+      ]
+
+      const recommendations = generateRecommendations(metricsData, metrics)
+
+      expect(recommendations.some((r) => r.toLowerCase().includes('create issues'))).toBe(true)
+      expect(recommendations.some((r) => r.toLowerCase().includes('report bugs or suggest features'))).toBe(true)
+    })
+  })
+
+  describe('evaluateContributor', () => {
+    const createTestData = (overrides: Partial<GraphQLContributorData> = {}): GraphQLContributorData => ({
+      user: {
+        login: 'test-user',
+        createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+        pullRequests: {
+          totalCount: 10,
+          nodes: [
+            {
+              state: 'MERGED',
+              merged: true,
+              mergedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              closedAt: new Date().toISOString(),
+              additions: 100,
+              deletions: 50,
+              repository: {
+                owner: { login: 'org' },
+                name: 'repo',
+                stargazerCount: 5000
+              }
+            },
+            {
+              state: 'MERGED',
+              merged: true,
+              mergedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              closedAt: new Date().toISOString(),
+              additions: 50,
+              deletions: 20,
+              repository: {
+                owner: { login: 'org' },
+                name: 'repo2',
+                stargazerCount: 3000
+              }
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        },
+        contributionsCollection: {
+          contributionCalendar: {
+            totalContributions: 200,
+            weeks: Array(52)
+              .fill(null)
+              .map((_, i) => ({
+                contributionDays: [
+                  { contributionCount: 5, date: `2024-${String(Math.floor(i / 4) + 1).padStart(2, '0')}-15` }
+                ]
+              }))
+          },
+          pullRequestReviewContributions: { totalCount: 15 }
+        },
+        issueComments: {
+          totalCount: 10,
+          nodes: [
+            { reactions: { nodes: [{ content: 'THUMBS_UP' }] } },
+            { reactions: { nodes: [{ content: 'HEART' }] } },
+            { reactions: { nodes: [{ content: 'THUMBS_UP' }] } },
+            { reactions: { nodes: [{ content: 'THUMBS_UP' }] } },
+            { reactions: { nodes: [{ content: 'HEART' }] } }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        },
+        ...overrides.user
+      },
+      issueSearch: {
+        issueCount: 3,
+        nodes: [
+          {
+            __typename: 'Issue',
+            createdAt: new Date().toISOString(),
+            comments: { totalCount: 5 },
+            reactions: { nodes: [{ content: 'THUMBS_UP' }] }
+          },
+          {
+            __typename: 'Issue',
+            createdAt: new Date().toISOString(),
+            comments: { totalCount: 3 },
+            reactions: { nodes: [{ content: 'HEART' }] }
+          }
+        ],
+        ...overrides.issueSearch
+      }
+    })
+
+    it('returns a complete AnalysisResult for a passing contributor', () => {
+      const data = createTestData()
+      const result = evaluateContributor(data, testConfig, sinceDate)
+
+      expect(result.username).toBe('test-user')
+      expect(result.passed).toBeDefined()
+      expect(result.passedCount).toBeLessThanOrEqual(result.totalMetrics)
+      expect(result.metrics).toHaveLength(8) // All 8 metrics
+      expect(result.analyzedAt).toBeInstanceOf(Date)
+      expect(result.dataWindowStart).toEqual(sinceDate)
+      expect(result.dataWindowEnd).toBeInstanceOf(Date)
+      expect(result.isTrustedUser).toBe(false)
+      expect(result.wasWhitelisted).toBe(false)
+    })
+
+    it('correctly identifies a new account', () => {
+      const newAccountDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000) // 15 days ago
+      const data = createTestData({
+        user: {
+          login: 'new-user',
+          createdAt: newAccountDate.toISOString(),
+          pullRequests: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          },
+          contributionsCollection: {
+            contributionCalendar: { totalContributions: 10, weeks: [] },
+            pullRequestReviewContributions: { totalCount: 0 }
+          },
+          issueComments: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        }
+      } as Partial<GraphQLContributorData>)
+
+      const result = evaluateContributor(data, testConfig, sinceDate)
+
+      expect(result.isNewAccount).toBe(true)
+    })
+
+    it('correctly identifies limited data', () => {
+      // Create data with minimal activity - totalDataPoints needs to be < 5
+      const data: GraphQLContributorData = {
+        user: {
+          login: 'limited-data-user',
+          createdAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
+          pullRequests: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          },
+          contributionsCollection: {
+            contributionCalendar: { totalContributions: 1, weeks: [] },
+            pullRequestReviewContributions: { totalCount: 0 }
+          },
+          issueComments: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        },
+        issueSearch: {
+          issueCount: 0,
+          nodes: []
+        }
+      }
+
+      const result = evaluateContributor(data, testConfig, sinceDate)
+
+      expect(result.hasLimitedData).toBe(true)
+    })
+
+    it('returns correct failedMetrics array', () => {
+      // Config with non-zero thresholds so we can test failures
+      const strictConfig = {
+        ...testConfig,
+        thresholds: {
+          ...testConfig.thresholds,
+          accountAge: 30, // Require account to be at least 30 days old
+          prMergeRate: 0.5 // Require at least 50% merge rate
+        }
+      }
+
+      // Create data that will fail the accountAge metric
+      const data: GraphQLContributorData = {
+        user: {
+          login: 'failing-user',
+          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // Only 10 days old
+          pullRequests: {
+            totalCount: 2,
+            nodes: [
+              {
+                state: 'CLOSED',
+                merged: false,
+                mergedAt: null,
+                createdAt: new Date().toISOString(),
+                closedAt: new Date().toISOString(),
+                additions: 5,
+                deletions: 1,
+                repository: { owner: { login: 'user' }, name: 'small-repo', stargazerCount: 10 }
+              },
+              {
+                state: 'CLOSED',
+                merged: false,
+                mergedAt: null,
+                createdAt: new Date().toISOString(),
+                closedAt: new Date().toISOString(),
+                additions: 5,
+                deletions: 1,
+                repository: { owner: { login: 'user' }, name: 'small-repo', stargazerCount: 10 }
+              }
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          },
+          contributionsCollection: {
+            contributionCalendar: { totalContributions: 5, weeks: [] },
+            pullRequestReviewContributions: { totalCount: 0 }
+          },
+          issueComments: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        },
+        issueSearch: {
+          issueCount: 0,
+          nodes: []
+        }
+      }
+
+      const result = evaluateContributor(data, strictConfig, sinceDate)
+
+      expect(result.failedMetrics).toBeDefined()
+      expect(Array.isArray(result.failedMetrics)).toBe(true)
+      // accountAge should fail (10 days < 30 days threshold)
+      expect(result.failedMetrics).toContain('accountAge')
+      // prMergeRate should fail (0% < 50% threshold)
+      expect(result.failedMetrics).toContain('prMergeRate')
+    })
+
+    it('respects requiredMetrics configuration', () => {
+      // Config with strict thresholds that will fail some metrics
+      const strictConfig = {
+        ...testConfig,
+        thresholds: {
+          ...testConfig.thresholds,
+          prMergeRate: 0, // Easy to pass (any merge rate >= 0)
+          codeReviews: 1000 // Impossible to pass
+        },
+        requiredMetrics: ['prMergeRate'] // Only prMergeRate is required
+      }
+
+      // Create data with good merge rate but low code reviews
+      const data = createTestData()
+
+      const result = evaluateContributor(data, strictConfig, sinceDate)
+
+      // prMergeRate should pass (threshold is 0)
+      const prMergeRateMetric = result.metrics.find((m) => m.name === 'prMergeRate')
+      expect(prMergeRateMetric?.passed).toBe(true)
+
+      // codeReviews should fail (threshold is 1000)
+      const codeReviewsMetric = result.metrics.find((m) => m.name === 'codeReviews')
+      expect(codeReviewsMetric?.passed).toBe(false)
+
+      // Overall should pass because only prMergeRate is required
+      expect(result.passed).toBe(true)
+    })
+
+    it('generates recommendations for failed metrics', () => {
+      // Config with strict thresholds that will cause failures
+      const strictConfig = {
+        ...testConfig,
+        thresholds: {
+          ...testConfig.thresholds,
+          prMergeRate: 0.9, // 90% merge rate required
+          codeReviews: 100 // 100 code reviews required
+        }
+      }
+
+      // Create data that will fail both metrics
+      const data: GraphQLContributorData = {
+        user: {
+          login: 'needs-improvement',
+          createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+          pullRequests: {
+            totalCount: 2,
+            nodes: [
+              {
+                state: 'CLOSED',
+                merged: false,
+                mergedAt: null,
+                createdAt: new Date().toISOString(),
+                closedAt: new Date().toISOString(),
+                additions: 10,
+                deletions: 5,
+                repository: { owner: { login: 'user' }, name: 'repo', stargazerCount: 50 }
+              }
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          },
+          contributionsCollection: {
+            contributionCalendar: { totalContributions: 10, weeks: [] },
+            pullRequestReviewContributions: { totalCount: 0 }
+          },
+          issueComments: {
+            totalCount: 0,
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        },
+        issueSearch: {
+          issueCount: 0,
+          nodes: []
+        }
+      }
+
+      const result = evaluateContributor(data, strictConfig, sinceDate)
+
+      // With strict thresholds, there should be failed metrics
+      expect(result.failedMetrics.length).toBeGreaterThan(0)
+      // And recommendations should be generated for them
+      expect(result.recommendations.length).toBeGreaterThan(0)
+    })
+
+    it('counts passed metrics correctly', () => {
+      const data = createTestData()
+      const result = evaluateContributor(data, testConfig, sinceDate)
+
+      const actualPassedCount = result.metrics.filter((m) => m.passed).length
+      expect(result.passedCount).toBe(actualPassedCount)
     })
   })
 })

@@ -151,7 +151,16 @@ To test the action locally with real GitHub data:
 3. Add it to `src/metrics/index.ts`
 4. Add corresponding tests in `__tests__/metrics/`
 5. Update the scoring engine in `src/scoring/engine.ts`
-6. Document the metric in README.md
+6. Add the metric to the table in README.md (Metrics section)
+7. Add detailed documentation in README.md (Metric Details section) with:
+   - What it measures
+   - Why it matters
+   - How it's calculated
+   - How to improve
+8. Add the metric to `formatMetricName()` in both:
+   - `src/output/comment.ts` (for PR comments)
+   - `src/output/formatter.ts` (for GitHub Actions summary)
+   - Include display name and anchor link to documentation
 
 ## Troubleshooting
 

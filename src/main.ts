@@ -1,5 +1,5 @@
 /**
- * Main entry point for the Contributor Quality GitHub Action
+ * Main entry point for the Contributor Report GitHub Action
  */
 
 import * as core from '@actions/core'
@@ -188,7 +188,7 @@ async function handleFailedCheck(
       break
 
     case 'fail':
-      core.setFailed(`Contributor quality check failed: ${result.failedMetrics.join(', ')} did not meet thresholds`)
+      core.setFailed(`Contributor report check failed: ${result.failedMetrics.join(', ')} did not meet thresholds`)
       break
 
     case 'none':

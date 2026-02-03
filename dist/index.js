@@ -33577,7 +33577,7 @@ class GitHubClient {
         // Build issue search query to find issues created by user
         // Using ISSUE_ADVANCED type with is:issue to properly filter out PRs
         const issueSearchQuery = `author:${username} is:issue created:>=${sinceDate.toISOString().split('T')[0]}`;
-        console.log(`[DEBUG] Issue search query: ${issueSearchQuery}`);
+        debug(`Issue search query: ${issueSearchQuery}`);
         const result = await this.executeGraphQL(CONTRIBUTOR_DATA_QUERY, {
             username,
             since: sinceDate.toISOString(),
@@ -33588,10 +33588,10 @@ class GitHubClient {
         if (!result.user) {
             throw new Error(`User not found: ${username}`);
         }
-        console.log(`[DEBUG] Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`);
+        debug(`Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`);
         if (result.issueSearch?.nodes?.length) {
             for (const node of result.issueSearch.nodes) {
-                console.log(`[DEBUG] Node: __typename=${node.__typename}, keys=${Object.keys(node).join(',')}`);
+                debug(`Node: __typename=${node.__typename}, keys=${Object.keys(node).join(',')}`);
             }
         }
         // Handle pagination for PRs if needed
@@ -33688,6 +33688,9 @@ class GitHubClient {
     async getRateLimitStatus() {
         try {
             const result = await this.executeGraphQL(RATE_LIMIT_QUERY, {});
+            if (!result || !result.rateLimit) {
+                return null;
+            }
             return parseRateLimit(result.rateLimit);
         }
         catch {
@@ -33729,7 +33732,7 @@ class GitHubClient {
                     comment_id: existingComment.id,
                     body
                 });
-                info('Updated existing quality check comment');
+                info('Updated existing report comment');
             }
             else {
                 // Create new comment
@@ -33739,7 +33742,7 @@ class GitHubClient {
                     issue_number: context.prNumber,
                     body
                 });
-                info('Created new quality check comment');
+                info('Created new report comment');
             }
         });
     }
@@ -34006,8 +34009,7 @@ function extractReactionData(data) {
     const comments = data.user.issueComments.nodes ?? [];
     // Filter to only include Issue types with reactions
     const issues = (data.issueSearch?.nodes ?? []).filter((issue) => issue.__typename === 'Issue' && issue.reactions?.nodes);
-    // Debug: log reaction sources
-    console.log(`[DEBUG] Reaction sources: ${comments.length} comments, ${issues.length} issues`);
+    debug(`Reaction sources: ${comments.length} comments, ${issues.length} issues`);
     let positiveCount = 0;
     let negativeCount = 0;
     let neutralCount = 0;
@@ -34234,12 +34236,10 @@ function extractIssueEngagementData(data) {
     const rawNodes = data.issueSearch?.nodes ?? [];
     // Filter to only include Issue types with expected properties
     const issues = rawNodes.filter((issue) => issue.__typename === 'Issue' && issue.comments && issue.reactions);
-    // Debug: log issue search results
-    console.log(`[DEBUG] Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`);
-    // Log first node structure if any
+    debug(`Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`);
     if (rawNodes.length > 0) {
         const firstNode = rawNodes[0];
-        console.log(`[DEBUG] First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`);
+        debug(`First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`);
     }
     const issuesWithComments = issues.filter((issue) => issue.comments.totalCount > 0).length;
     const issuesWithReactions = issues.filter((issue) => issue.reactions.nodes.length > 0).length;
@@ -34475,7 +34475,7 @@ function generateAnalysisComment(result, config) {
     const statusText = result.passed ? 'Passed' : 'Needs Review';
     const lines = [
         COMMENT_MARKER,
-        `## ${statusEmoji} Contributor Quality Check`,
+        `## ${statusEmoji} Contributor Report`,
         '',
         `**User:** @${result.username}`,
         `**Status:** ${statusText} (${result.passedCount}/${result.totalMetrics} metrics passed)`,
@@ -34515,7 +34515,7 @@ function generateAnalysisComment(result, config) {
     }
     // Footer
     lines.push('---');
-    lines.push(`<sub>Contributor Quality Check evaluates based on public GitHub activity. ` +
+    lines.push(`<sub>Contributor Report evaluates based on public GitHub activity. ` +
         `Analysis period: ${result.dataWindowStart.toISOString().split('T')[0]} to ${result.dataWindowEnd.toISOString().split('T')[0]}</sub>`);
     return lines.join('\n');
 }
@@ -34525,7 +34525,7 @@ function generateAnalysisComment(result, config) {
 function generateWhitelistComment(username) {
     return [
         COMMENT_MARKER,
-        '## ✅ Contributor Quality Check',
+        '## ✅ Contributor Report',
         '',
         `**User:** @${username}`,
         `**Status:** Trusted contributor (whitelisted)`,
@@ -34567,20 +34567,25 @@ function formatThreshold(metric) {
     return `>= ${metric.threshold}`;
 }
 /**
- * Format metric name for display
+ * Format metric name for display with documentation link
  */
 function formatMetricName$1(name) {
-    const nameMap = {
-        prMergeRate: 'PR Merge Rate',
-        repoQuality: 'Repo Quality',
-        positiveReactions: 'Positive Reactions',
-        negativeReactions: 'Negative Reactions',
-        accountAge: 'Account Age',
-        activityConsistency: 'Activity Consistency',
-        issueEngagement: 'Issue Engagement',
-        codeReviews: 'Code Reviews'
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report#';
+    const metricInfo = {
+        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
+        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
+        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
+        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
+        accountAge: { display: 'Account Age', anchor: 'account-age' },
+        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
+        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
+        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
     };
-    return nameMap[name] || name;
+    const info = metricInfo[name];
+    if (info) {
+        return `[${info.display}](${BASE_URL}${info.anchor})`;
+    }
+    return name;
 }
 
 /**
@@ -34652,7 +34657,7 @@ function setWhitelistOutputs(username) {
 function logResultSummary(result) {
     info('');
     info('╔══════════════════════════════════════════════════╗');
-    info('║         CONTRIBUTOR QUALITY ANALYSIS             ║');
+    info('║         CONTRIBUTOR REPORT ANALYSIS              ║');
     info('╚══════════════════════════════════════════════════╝');
     info('');
     info(`  User:      @${result.username}`);
@@ -34690,7 +34695,7 @@ async function writeJobSummary(result) {
     const statusEmoji = result.passed ? '✅' : '⚠️';
     const statusText = result.passed ? 'Passed' : 'Needs Review';
     summary
-        .addHeading(`${statusEmoji} Contributor Quality Check`, 2)
+        .addHeading(`${statusEmoji} Contributor Report`, 2)
         .addRaw(`\n**User:** @${result.username}\n\n**Status:** ${statusText} (${result.passedCount}/${result.totalMetrics} metrics passed)\n\n`);
     // Add note for new accounts
     if (result.isNewAccount) {
@@ -34724,27 +34729,32 @@ async function writeJobSummary(result) {
         .write();
 }
 /**
- * Format metric name for display
+ * Format metric name for display with documentation link
  */
 function formatMetricName(name) {
-    const nameMap = {
-        prMergeRate: 'PR Merge Rate',
-        repoQuality: 'Repo Quality',
-        positiveReactions: 'Positive Reactions',
-        negativeReactions: 'Negative Reactions',
-        accountAge: 'Account Age',
-        activityConsistency: 'Activity Consistency',
-        issueEngagement: 'Issue Engagement',
-        codeReviews: 'Code Reviews'
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report#';
+    const metricInfo = {
+        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
+        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
+        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
+        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
+        accountAge: { display: 'Account Age', anchor: 'account-age' },
+        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
+        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
+        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
     };
-    return nameMap[name] || name;
+    const info = metricInfo[name];
+    if (info) {
+        return `[${info.display}](${BASE_URL}${info.anchor})`;
+    }
+    return name;
 }
 /**
  * Write whitelisted user summary to GitHub Job Summary
  */
 async function writeWhitelistSummary(username) {
     await summary
-        .addHeading('Contributor Quality Analysis', 2)
+        .addHeading('Contributor Report Analysis', 2)
         .addRaw(`✅ **@${username}** is a trusted contributor and was automatically approved.\n`)
         .write();
 }
@@ -34779,7 +34789,7 @@ function formatThresholdForLog(metric) {
 }
 
 /**
- * Main entry point for the Contributor Quality GitHub Action
+ * Main entry point for the Contributor Report GitHub Action
  */
 /**
  * Main action function
@@ -34918,7 +34928,7 @@ async function handleFailedCheck(result, config, client, prContext) {
             }
             break;
         case 'fail':
-            setFailed(`Contributor quality check failed: ${result.failedMetrics.join(', ')} did not meet thresholds`);
+            setFailed(`Contributor report check failed: ${result.failedMetrics.join(', ')} did not meet thresholds`);
             break;
         case 'none':
         default:
@@ -34928,7 +34938,7 @@ async function handleFailedCheck(result, config, client, prContext) {
 }
 
 /**
- * Entry point for the Contributor Quality GitHub Action
+ * Entry point for the Contributor Report GitHub Action
  */
 /* istanbul ignore next */
 run();
