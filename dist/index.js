@@ -33577,7 +33577,7 @@ class GitHubClient {
         // Build issue search query to find issues created by user
         // Using ISSUE_ADVANCED type with is:issue to properly filter out PRs
         const issueSearchQuery = `author:${username} is:issue created:>=${sinceDate.toISOString().split('T')[0]}`;
-        console.log(`[DEBUG] Issue search query: ${issueSearchQuery}`);
+        debug(`Issue search query: ${issueSearchQuery}`);
         const result = await this.executeGraphQL(CONTRIBUTOR_DATA_QUERY, {
             username,
             since: sinceDate.toISOString(),
@@ -33588,10 +33588,10 @@ class GitHubClient {
         if (!result.user) {
             throw new Error(`User not found: ${username}`);
         }
-        console.log(`[DEBUG] Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`);
+        debug(`Issue search returned: issueCount=${result.issueSearch?.issueCount ?? 0}, nodes=${result.issueSearch?.nodes?.length ?? 0}`);
         if (result.issueSearch?.nodes?.length) {
             for (const node of result.issueSearch.nodes) {
-                console.log(`[DEBUG] Node: __typename=${node.__typename}, keys=${Object.keys(node).join(',')}`);
+                debug(`Node: __typename=${node.__typename}, keys=${Object.keys(node).join(',')}`);
             }
         }
         // Handle pagination for PRs if needed
@@ -34009,8 +34009,7 @@ function extractReactionData(data) {
     const comments = data.user.issueComments.nodes ?? [];
     // Filter to only include Issue types with reactions
     const issues = (data.issueSearch?.nodes ?? []).filter((issue) => issue.__typename === 'Issue' && issue.reactions?.nodes);
-    // Debug: log reaction sources
-    console.log(`[DEBUG] Reaction sources: ${comments.length} comments, ${issues.length} issues`);
+    debug(`Reaction sources: ${comments.length} comments, ${issues.length} issues`);
     let positiveCount = 0;
     let negativeCount = 0;
     let neutralCount = 0;
@@ -34237,12 +34236,10 @@ function extractIssueEngagementData(data) {
     const rawNodes = data.issueSearch?.nodes ?? [];
     // Filter to only include Issue types with expected properties
     const issues = rawNodes.filter((issue) => issue.__typename === 'Issue' && issue.comments && issue.reactions);
-    // Debug: log issue search results
-    console.log(`[DEBUG] Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`);
-    // Log first node structure if any
+    debug(`Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`);
     if (rawNodes.length > 0) {
         const firstNode = rawNodes[0];
-        console.log(`[DEBUG] First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`);
+        debug(`First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`);
     }
     const issuesWithComments = issues.filter((issue) => issue.comments.totalCount > 0).length;
     const issuesWithReactions = issues.filter((issue) => issue.reactions.nodes.length > 0).length;

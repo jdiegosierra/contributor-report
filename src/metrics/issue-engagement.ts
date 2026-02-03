@@ -2,6 +2,7 @@
  * Issue engagement metric calculator
  */
 
+import * as core from '@actions/core'
 import type { GraphQLContributorData } from '../types/github.js'
 import type { IssueEngagementData, MetricCheckResult } from '../types/metrics.js'
 
@@ -17,15 +18,11 @@ export function extractIssueEngagementData(data: GraphQLContributorData): IssueE
   // Filter to only include Issue types with expected properties
   const issues = rawNodes.filter((issue) => issue.__typename === 'Issue' && issue.comments && issue.reactions)
 
-  // Debug: log issue search results
-
-  console.log(`[DEBUG] Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`)
-  // Log first node structure if any
+  core.debug(`Issue search: ${rawNodes.length} raw nodes, ${issues.length} valid issues`)
   if (rawNodes.length > 0) {
     const firstNode = rawNodes[0]
-
-    console.log(
-      `[DEBUG] First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`
+    core.debug(
+      `First node: __typename=${firstNode.__typename || 'undefined'}, keys=${Object.keys(firstNode).join(', ') || '(empty)'}`
     )
   }
 

@@ -2,6 +2,7 @@
  * Reactions metric calculator
  */
 
+import * as core from '@actions/core'
 import type { GraphQLContributorData, GitHubReactionContent } from '../types/github.js'
 import type { ReactionData, MetricCheckResult } from '../types/metrics.js'
 import { POSITIVE_REACTIONS, NEGATIVE_REACTIONS } from '../types/metrics.js'
@@ -17,9 +18,7 @@ export function extractReactionData(data: GraphQLContributorData): ReactionData 
     (issue) => issue.__typename === 'Issue' && issue.reactions?.nodes
   )
 
-  // Debug: log reaction sources
-
-  console.log(`[DEBUG] Reaction sources: ${comments.length} comments, ${issues.length} issues`)
+  core.debug(`Reaction sources: ${comments.length} comments, ${issues.length} issues`)
 
   let positiveCount = 0
   let negativeCount = 0
