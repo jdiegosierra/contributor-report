@@ -87,7 +87,7 @@ export async function run(): Promise<void> {
     logResultSummary(result)
 
     // Write Job Summary
-    await writeJobSummary(result)
+    await writeJobSummary(result, config)
 
     // Set outputs
     setActionOutputs(result)

@@ -96,6 +96,11 @@ inputs:
     required: false
     default: 'false'
 
+  verbose-details:
+    description: 'Show detailed evidence for metrics: none, failed (only failed metrics), all (all metrics)'
+    required: false
+    default: 'none'
+
   new-account-action:
     description: 'Behavior for accounts younger than threshold: neutral, require-review, block'
     required: false

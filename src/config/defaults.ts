@@ -2,7 +2,13 @@
  * Default configuration values
  */
 
-import type { ContributorQualityConfig, MetricThresholds, FailAction, NewAccountAction } from '../types/config.js'
+import type {
+  ContributorQualityConfig,
+  MetricThresholds,
+  FailAction,
+  NewAccountAction,
+  VerboseDetailsLevel
+} from '../types/config.js'
 
 import { DEFAULT_THRESHOLDS, DEFAULT_REQUIRED_METRICS, DEFAULT_TRUSTED_USERS } from '../types/config.js'
 
@@ -22,7 +28,8 @@ export const DEFAULT_CONFIG: Omit<ContributorQualityConfig, 'githubToken'> = {
   dryRun: false,
   newAccountAction: 'neutral' as NewAccountAction,
   newAccountThresholdDays: 30,
-  enableSpamDetection: true
+  enableSpamDetection: true,
+  verboseDetails: 'none' as VerboseDetailsLevel
 }
 
 /** Validate threshold values */

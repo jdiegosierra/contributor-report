@@ -47,6 +47,9 @@ export type FailAction = 'comment' | 'label' | 'fail' | 'comment-and-label' | 'n
 /** Actions for new accounts */
 export type NewAccountAction = 'neutral' | 'require-review' | 'block'
 
+/** Verbose details display level */
+export type VerboseDetailsLevel = 'none' | 'failed' | 'all'
+
 /** Main configuration for the action */
 export interface ContributorQualityConfig {
   /** GitHub token for API access */
@@ -87,6 +90,9 @@ export interface ContributorQualityConfig {
 
   /** Enable suspicious activity pattern detection */
   enableSpamDetection: boolean
+
+  /** Verbose details display level */
+  verboseDetails: VerboseDetailsLevel
 }
 
 /** Default metric thresholds */
