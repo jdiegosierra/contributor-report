@@ -52,16 +52,24 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
     lines.push(
       `| ${formatMetricName(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`
     )
-
-    // Add verbose details if enabled and metrics data is available
-    if (result.metricsData && shouldShowVerboseDetails(config.verboseDetails, metric.passed)) {
-      lines.push('')
-      lines.push(formatVerboseDetails(metric.name, result.metricsData))
-      lines.push('')
-    }
   }
 
   lines.push('')
+
+  // Add verbose details after the table (if enabled)
+  if (result.metricsData && config.verboseDetails !== 'none') {
+    const verboseMetrics = result.metrics.filter((m) => shouldShowVerboseDetails(config.verboseDetails, m.passed))
+
+    if (verboseMetrics.length > 0) {
+      lines.push('### Metric Details')
+      lines.push('')
+
+      for (const metric of verboseMetrics) {
+        lines.push(formatVerboseDetails(metric.name, result.metricsData))
+        lines.push('')
+      }
+    }
+  }
 
   // Recommendations (only if there are failed metrics)
   if (result.recommendations.length > 0 && !result.passed) {
@@ -107,16 +115,25 @@ export function generatePassedComment(result: AnalysisResult, config: Contributo
     lines.push(
       `| ${formatMetricName(metric.name)} | ${description} | ${formatMetricValue(metric)} | ${formatThreshold(metric)} | ${statusIcon} |`
     )
-
-    // Add verbose details if enabled and metrics data is available
-    if (result.metricsData && shouldShowVerboseDetails(config.verboseDetails, metric.passed)) {
-      lines.push('')
-      lines.push(formatVerboseDetails(metric.name, result.metricsData))
-      lines.push('')
-    }
   }
 
   lines.push('')
+
+  // Add verbose details after the table (if enabled)
+  if (result.metricsData && config.verboseDetails !== 'none') {
+    const verboseMetrics = result.metrics.filter((m) => shouldShowVerboseDetails(config.verboseDetails, m.passed))
+
+    if (verboseMetrics.length > 0) {
+      lines.push('#### Metric Details')
+      lines.push('')
+
+      for (const metric of verboseMetrics) {
+        lines.push(formatVerboseDetails(metric.name, result.metricsData))
+        lines.push('')
+      }
+    }
+  }
+
   lines.push('</details>')
 
   return lines.join('\n')
