@@ -64,9 +64,16 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
       lines.push('### Metric Details')
       lines.push('')
 
+      // Track which detail groups have been shown to avoid duplicates
+      const shownGroups = new Set<string>()
+
       for (const metric of verboseMetrics) {
-        lines.push(formatVerboseDetails(metric.name, result.metricsData))
-        lines.push('')
+        const group = getMetricDetailGroup(metric.name)
+        if (!shownGroups.has(group)) {
+          shownGroups.add(group)
+          lines.push(formatVerboseDetails(metric.name, result.metricsData))
+          lines.push('')
+        }
       }
     }
   }
@@ -127,9 +134,16 @@ export function generatePassedComment(result: AnalysisResult, config: Contributo
       lines.push('#### Metric Details')
       lines.push('')
 
+      // Track which detail groups have been shown to avoid duplicates
+      const shownGroups = new Set<string>()
+
       for (const metric of verboseMetrics) {
-        lines.push(formatVerboseDetails(metric.name, result.metricsData))
-        lines.push('')
+        const group = getMetricDetailGroup(metric.name)
+        if (!shownGroups.has(group)) {
+          shownGroups.add(group)
+          lines.push(formatVerboseDetails(metric.name, result.metricsData))
+          lines.push('')
+        }
       }
     }
   }
@@ -284,6 +298,21 @@ function getMetricDescription(name: string, minimumStars?: number): string {
   }
 
   return descriptions[name] || ''
+}
+
+/**
+ * Get the detail group for a metric (to avoid duplicate details)
+ */
+function getMetricDetailGroup(metricName: string): string {
+  const groups: Record<string, string> = {
+    positiveReactions: 'reactions',
+    negativeReactions: 'reactions',
+    accountAge: 'account',
+    activityConsistency: 'account',
+    repoHistoryMergeRate: 'repoHistory',
+    repoHistoryMinPRs: 'repoHistory'
+  }
+  return groups[metricName] || metricName
 }
 
 /**
