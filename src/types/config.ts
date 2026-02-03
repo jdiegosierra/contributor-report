@@ -27,6 +27,18 @@ export interface MetricThresholds {
 
   /** Code reviews: minimum reviews given */
   codeReviews: number
+
+  /** Merger diversity: minimum unique maintainers who merged PRs */
+  mergerDiversity: number
+
+  /** Repo history merge rate (0-1): minimum merge rate in this specific repo */
+  repoHistoryMergeRate: number
+
+  /** Repo history min PRs: minimum previous PRs in this repo */
+  repoHistoryMinPRs: number
+
+  /** Profile completeness: minimum score (0-100) */
+  profileCompleteness: number
 }
 
 /** Actions to take when check fails */
@@ -72,6 +84,9 @@ export interface ContributorQualityConfig {
 
   /** Days threshold to consider an account "new" */
   newAccountThresholdDays: number
+
+  /** Enable suspicious activity pattern detection */
+  enableSpamDetection: boolean
 }
 
 /** Default metric thresholds */
@@ -83,7 +98,11 @@ export const DEFAULT_THRESHOLDS: MetricThresholds = {
   accountAge: 0,
   activityConsistency: 0,
   issueEngagement: 0,
-  codeReviews: 0
+  codeReviews: 0,
+  mergerDiversity: 0,
+  repoHistoryMergeRate: 0,
+  repoHistoryMinPRs: 0,
+  profileCompleteness: 0
 }
 
 /** Default required metrics (must pass for check to pass) */

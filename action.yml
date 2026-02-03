@@ -35,6 +35,27 @@ inputs:
     description: 'Maximum negative reactions allowed'
     required: false
 
+  threshold-merger-diversity:
+    description: 'Minimum number of unique maintainers who merged PRs'
+    required: false
+
+  threshold-repo-history-merge-rate:
+    description: 'Minimum merge rate in this specific repository (0-1)'
+    required: false
+
+  threshold-repo-history-min-prs:
+    description: 'Minimum number of previous PRs in this repository'
+    required: false
+
+  threshold-profile-completeness:
+    description: 'Minimum profile completeness score (0-100)'
+    required: false
+
+  enable-spam-detection:
+    description: 'Enable suspicious activity pattern detection'
+    required: false
+    default: 'true'
+
   required-metrics:
     description: 'Comma-separated list of metrics that must pass'
     required: false

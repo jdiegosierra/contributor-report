@@ -21,7 +21,8 @@ export const DEFAULT_CONFIG: Omit<ContributorQualityConfig, 'githubToken'> = {
   labelName: 'needs-review',
   dryRun: false,
   newAccountAction: 'neutral' as NewAccountAction,
-  newAccountThresholdDays: 30
+  newAccountThresholdDays: 30,
+  enableSpamDetection: true
 }
 
 /** Validate threshold values */
@@ -40,6 +41,22 @@ export function validateThresholds(thresholds: MetricThresholds): void {
 
   if (thresholds.negativeReactions < 0) {
     throw new Error(`negativeReactions threshold must be non-negative, got ${thresholds.negativeReactions}`)
+  }
+
+  if (thresholds.mergerDiversity < 0) {
+    throw new Error(`mergerDiversity threshold must be non-negative, got ${thresholds.mergerDiversity}`)
+  }
+
+  if (thresholds.repoHistoryMergeRate < 0 || thresholds.repoHistoryMergeRate > 1) {
+    throw new Error(`repoHistoryMergeRate threshold must be between 0 and 1, got ${thresholds.repoHistoryMergeRate}`)
+  }
+
+  if (thresholds.repoHistoryMinPRs < 0) {
+    throw new Error(`repoHistoryMinPRs threshold must be non-negative, got ${thresholds.repoHistoryMinPRs}`)
+  }
+
+  if (thresholds.profileCompleteness < 0 || thresholds.profileCompleteness > 100) {
+    throw new Error(`profileCompleteness threshold must be between 0 and 100, got ${thresholds.profileCompleteness}`)
   }
 }
 
@@ -60,7 +77,12 @@ export const VALID_METRIC_NAMES = [
   'accountAge',
   'activityConsistency',
   'issueEngagement',
-  'codeReviews'
+  'codeReviews',
+  'mergerDiversity',
+  'repoHistoryMergeRate',
+  'repoHistoryMinPRs',
+  'profileCompleteness',
+  'suspiciousPatterns'
 ] as const
 
 /** Validate required metrics list */

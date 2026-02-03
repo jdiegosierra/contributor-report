@@ -378,11 +378,14 @@ describe('Output Formatter', () => {
       const tableCall = (core.summary.addTable as jest.MockedFunction<typeof core.summary.addTable>).mock.calls[0]
       const tableData = tableCall[0]
 
-      // Check that metric names include links
-      const metricNames = tableData.slice(1).map((row) => row[0])
-      metricNames.forEach((name) => {
-        expect(name).toContain('[')
-        expect(name).toContain('](https://github.com/jdiegosierra/contributor-report#')
+      // Check that metric names include links and descriptions
+      const metricRows = tableData.slice(1)
+      metricRows.forEach((row) => {
+        // First column: metric name with link
+        expect(row[0]).toContain('[')
+        expect(row[0]).toContain('](https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/')
+        // Second column: description (non-empty string)
+        expect(row[1]).toBeTruthy()
       })
     })
   })

@@ -52,11 +52,12 @@ src/
 │   ├── account-age.ts    # Account age and consistency
 │   ├── issue-engagement.ts # Issue engagement metrics
 │   ├── code-review.ts    # Code review contributions
-│   └── spam-detection.ts # Spam pattern detection
+│   ├── merger-diversity.ts # Unique maintainers who merged PRs
+│   ├── repo-history.ts   # Track record in specific repository
+│   ├── profile-completeness.ts # GitHub profile richness
+│   └── suspicious-patterns.ts # Cross-metric spam detection
 ├── scoring/              # Score calculation
-│   ├── engine.ts         # Main scoring aggregation
-│   ├── decay.ts          # Time-based decay toward baseline
-│   └── normalizer.ts     # Score normalization utilities
+│   └── engine.ts         # Main scoring aggregation
 └── output/               # Output formatting
     ├── comment.ts        # PR comment generation
     └── formatter.ts      # Action output formatting
@@ -64,13 +65,39 @@ src/
 
 ## Key Concepts
 
-### Scoring System
+### Metric Pattern
 
-- **Baseline**: 500/1000 (neutral)
-- **Range**: 0-1000
-- Each metric produces a normalized score (0-100) then applies weight
-- Spam patterns apply additional penalties
-- Scores decay toward baseline based on activity recency
+Each metric follows a consistent pattern:
+
+```typescript
+// 1. Extract data from GraphQL response
+function extractXxxData(data: GraphQLContributorData, ...params): XxxData
+
+// 2. Check against threshold
+function checkXxx(data: XxxData, threshold: number): MetricCheckResult
+```
+
+**Available Metrics (12 total):**
+
+- `prMergeRate` - PR merge rate analysis
+- `repoQuality` - Contributions to starred repos
+- `positiveReactions` / `negativeReactions` - Community engagement
+- `accountAge` / `activityConsistency` - Account maturity
+- `issueEngagement` - Issue creation and engagement
+- `codeReviews` - Code review contributions
+- `mergerDiversity` - Unique maintainers who merged PRs
+- `repoHistoryMergeRate` / `repoHistoryMinPRs` - Track record in specific repo
+- `profileCompleteness` - GitHub profile richness
+- `suspiciousPatterns` - Cross-metric spam detection (auto-fail on critical)
+
+### Cross-Metric Analysis
+
+The `suspiciousPatterns` metric is special - it analyzes data from multiple other metrics to detect spam patterns. It
+runs after base metrics are extracted and can trigger automatic failure on critical patterns like:
+
+- New account with high PR volume across many repos
+- Excessive PR rate (>2 PRs/day average)
+- High self-merge rate on low-quality repos
 
 ### Testing Pattern (ESM Mocking)
 
@@ -147,20 +174,35 @@ To test the action locally with real GitHub data:
 ## Adding New Metrics
 
 1. Create new file in `src/metrics/your-metric.ts`
-2. Export a function that returns a `MetricResult`
-3. Add it to `src/metrics/index.ts`
-4. Add corresponding tests in `__tests__/metrics/`
-5. Update the scoring engine in `src/scoring/engine.ts`
-6. Add the metric to the table in README.md (Metrics section)
-7. Add detailed documentation in README.md (Metric Details section) with:
-   - What it measures
-   - Why it matters
-   - How it's calculated
-   - How to improve
-8. Add the metric to `formatMetricName()` in both:
-   - `src/output/comment.ts` (for PR comments)
-   - `src/output/formatter.ts` (for GitHub Actions summary)
-   - Include display name and anchor link to documentation
+2. Define data interface in `src/types/metrics.ts` and add to `AllMetricsData`
+3. Export `extractXxxData()` and `checkXxx()` functions
+4. Add exports to `src/metrics/index.ts`
+5. Add corresponding tests in `__tests__/metrics/`
+6. Update the scoring engine in `src/scoring/engine.ts`:
+   - Import new functions
+   - Call `extractXxxData()` in `extractAllMetrics()`
+   - Call `checkXxx()` in `checkAllMetrics()`
+   - Add recommendation case in `generateRecommendations()`
+7. Add threshold to `MetricThresholds` in `src/types/config.ts`
+8. Add default value to `DEFAULT_THRESHOLDS` in `src/types/config.ts`
+9. Add metric name to `VALID_METRIC_NAMES` in `src/config/defaults.ts`
+10. Add input parsing in `src/config/inputs.ts`
+11. Add input definition in `action.yml`
+12. Add the metric to the table in README.md (Metrics section)
+13. Add detailed documentation in README.md (Metric Details section) with:
+    - What it measures
+    - Why it matters
+    - How it's calculated
+    - How to improve
+14. Add the metric to `formatMetricName()` in both:
+    - `src/output/comment.ts` (for PR comments)
+    - `src/output/formatter.ts` (for GitHub Actions summary)
+    - Include display name and anchor link to documentation
+
+**Note:** Some metrics need additional context:
+
+- Metrics analyzing repo-specific data need `prContext: PRContext` parameter
+- Cross-metric analysis (like `suspiciousPatterns`) should extract after base metrics
 
 ## Troubleshooting
 

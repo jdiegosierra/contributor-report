@@ -8,6 +8,12 @@ query ContributorAnalysis($username: String!, $since: DateTime!, $prCursor: Stri
   user(login: $username) {
     login
     createdAt
+    bio
+    company
+    location
+    websiteUrl
+    followers { totalCount }
+    repositories(privacy: PUBLIC) { totalCount }
 
     pullRequests(
       first: 100
@@ -24,6 +30,7 @@ query ContributorAnalysis($username: String!, $since: DateTime!, $prCursor: Stri
         closedAt
         additions
         deletions
+        mergedBy { login }
         repository {
           owner { login }
           name
