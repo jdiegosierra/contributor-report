@@ -10,7 +10,7 @@ import {
   evaluateContributor
 } from '../../src/scoring/engine.js'
 import { DEFAULT_CONFIG } from '../../src/config/defaults.js'
-import type { GraphQLContributorData } from '../../src/types/github.js'
+import type { GraphQLContributorData, PRContext } from '../../src/types/github.js'
 import type { AllMetricsData, MetricCheckResult } from '../../src/types/metrics.js'
 
 describe('Evaluation Engine', () => {
@@ -22,12 +22,26 @@ describe('Evaluation Engine', () => {
     githubToken: 'test-token'
   }
 
+  // Create a test PR context
+  const testPRContext: PRContext = {
+    owner: 'org',
+    repo: 'repo',
+    prNumber: 123,
+    prAuthor: 'test-user'
+  }
+
   describe('extractAllMetrics', () => {
     it('extracts all metric data from GraphQL response', () => {
       const data: GraphQLContributorData = {
         user: {
           login: 'test-user',
           createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+          bio: 'A test user',
+          company: 'Test Co',
+          location: 'Test City',
+          websiteUrl: 'https://test.com',
+          followers: { totalCount: 50 },
+          repositories: { totalCount: 10 },
           pullRequests: {
             totalCount: 5,
             nodes: [
@@ -39,6 +53,7 @@ describe('Evaluation Engine', () => {
                 closedAt: new Date().toISOString(),
                 additions: 100,
                 deletions: 50,
+                mergedBy: { login: 'maintainer' },
                 repository: {
                   owner: { login: 'org' },
                   name: 'repo',
@@ -82,7 +97,7 @@ describe('Evaluation Engine', () => {
         }
       }
 
-      const result = extractAllMetrics(data, testConfig, sinceDate)
+      const result = extractAllMetrics(data, testConfig, sinceDate, testPRContext)
 
       expect(result.prHistory).toBeDefined()
       expect(result.repoQuality).toBeDefined()
@@ -90,6 +105,9 @@ describe('Evaluation Engine', () => {
       expect(result.account).toBeDefined()
       expect(result.issueEngagement).toBeDefined()
       expect(result.codeReviews).toBeDefined()
+      expect(result.mergerDiversity).toBeDefined()
+      expect(result.repoHistory).toBeDefined()
+      expect(result.profile).toBeDefined()
     })
   })
 
@@ -136,12 +154,41 @@ describe('Evaluation Engine', () => {
           reviewsGiven: 15,
           reviewCommentsGiven: 7,
           reviewedRepos: []
+        },
+        mergerDiversity: {
+          totalMergedPRs: 8,
+          uniqueMergers: 3,
+          selfMergeCount: 2,
+          othersMergeCount: 6,
+          selfMergesOnOwnRepos: 1,
+          selfMergesOnExternalRepos: 1,
+          externalReposWithMergePrivilege: ['org/repo'],
+          onlySelfMergesOnOwnRepos: false,
+          selfMergeRate: 0.25,
+          mergerLogins: ['maintainer1', 'maintainer2', 'test-user']
+        },
+        repoHistory: {
+          repoName: 'org/repo',
+          totalPRsInRepo: 5,
+          mergedPRsInRepo: 4,
+          closedWithoutMergeInRepo: 1,
+          repoMergeRate: 0.8,
+          isFirstTimeContributor: false
+        },
+        profile: {
+          followersCount: 50,
+          publicReposCount: 10,
+          hasBio: true,
+          hasCompany: true,
+          hasLocation: true,
+          hasWebsite: true,
+          completenessScore: 100
         }
       }
 
       const results = checkAllMetrics(metricsData, testConfig)
 
-      expect(results.length).toBe(8) // 8 metrics
+      expect(results.length).toBe(12) // 12 metrics (8 original + 4 new)
       expect(results.every((r) => typeof r.passed === 'boolean')).toBe(true)
       expect(results.every((r) => typeof r.rawValue === 'number')).toBe(true)
       expect(results.every((r) => typeof r.threshold === 'number')).toBe(true)
@@ -234,6 +281,39 @@ describe('Evaluation Engine', () => {
   })
 
   describe('generateRecommendations', () => {
+    // Default values for new metrics to reduce duplication in tests
+    const defaultNewMetrics = {
+      mergerDiversity: {
+        totalMergedPRs: 0,
+        uniqueMergers: 0,
+        selfMergeCount: 0,
+        othersMergeCount: 0,
+        selfMergesOnOwnRepos: 0,
+        selfMergesOnExternalRepos: 0,
+        externalReposWithMergePrivilege: [],
+        onlySelfMergesOnOwnRepos: false,
+        selfMergeRate: 0,
+        mergerLogins: []
+      },
+      repoHistory: {
+        repoName: 'org/repo',
+        totalPRsInRepo: 0,
+        mergedPRsInRepo: 0,
+        closedWithoutMergeInRepo: 0,
+        repoMergeRate: 0,
+        isFirstTimeContributor: true
+      },
+      profile: {
+        followersCount: 0,
+        publicReposCount: 0,
+        hasBio: false,
+        hasCompany: false,
+        hasLocation: false,
+        hasWebsite: false,
+        completenessScore: 0
+      }
+    }
+
     it('recommends improving PR quality for failed prMergeRate', () => {
       const metricsData: AllMetricsData = {
         prHistory: {
@@ -276,7 +356,8 @@ describe('Evaluation Engine', () => {
           reviewsGiven: 0,
           reviewCommentsGiven: 0,
           reviewedRepos: []
-        }
+        },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -337,7 +418,8 @@ describe('Evaluation Engine', () => {
           reviewsGiven: 2,
           reviewCommentsGiven: 1,
           reviewedRepos: []
-        }
+        },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -398,7 +480,8 @@ describe('Evaluation Engine', () => {
           reviewsGiven: 2,
           reviewCommentsGiven: 1,
           reviewedRepos: []
-        }
+        },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -459,7 +542,8 @@ describe('Evaluation Engine', () => {
           reviewsGiven: 0,
           reviewCommentsGiven: 0,
           reviewedRepos: []
-        }
+        },
+        ...defaultNewMetrics
       }
 
       // A metric that fails but doesn't have a specific recommendation
@@ -482,17 +566,44 @@ describe('Evaluation Engine', () => {
 
     it('recommends focusing on constructive communication for failed negativeReactions', () => {
       const metricsData: AllMetricsData = {
-        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
-        reactions: { positive: 5, negative: 3, sources: { comments: 10, issues: 0 } },
-        repoQuality: { contributedRepos: [], qualityRepoCount: 0, totalStarredContributions: 0 },
-        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        prHistory: {
+          totalPRs: 10,
+          mergedPRs: 8,
+          closedWithoutMerge: 2,
+          openPRs: 0,
+          mergeRate: 0.8,
+          averagePRSize: 50,
+          veryShortPRs: 0,
+          mergedPRDates: []
+        },
+        reactions: {
+          totalComments: 10,
+          positiveReactions: 5,
+          negativeReactions: 3,
+          neutralReactions: 2,
+          positiveRatio: 0.5
+        },
+        repoQuality: {
+          contributedRepos: [],
+          qualityRepoCount: 0,
+          averageRepoStars: 0,
+          highestStarRepo: 0
+        },
+        account: {
+          createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+          ageInDays: 180,
+          monthsWithActivity: 6,
+          totalMonthsInWindow: 12,
+          consistencyScore: 0.5
+        },
         issueEngagement: {
           issuesCreated: 5,
           issuesWithComments: 3,
           issuesWithReactions: 2,
           averageCommentsPerIssue: 2
         },
-        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -506,17 +617,44 @@ describe('Evaluation Engine', () => {
 
     it('recommends continuing building history for failed accountAge', () => {
       const metricsData: AllMetricsData = {
-        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
-        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
-        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
-        account: { ageInDays: 20, monthsWithActivity: 1, totalMonthsInWindow: 1, consistencyRate: 1.0 },
+        prHistory: {
+          totalPRs: 10,
+          mergedPRs: 8,
+          closedWithoutMerge: 2,
+          openPRs: 0,
+          mergeRate: 0.8,
+          averagePRSize: 50,
+          veryShortPRs: 0,
+          mergedPRDates: []
+        },
+        reactions: {
+          totalComments: 10,
+          positiveReactions: 10,
+          negativeReactions: 0,
+          neutralReactions: 0,
+          positiveRatio: 1.0
+        },
+        repoQuality: {
+          contributedRepos: [],
+          qualityRepoCount: 2,
+          averageRepoStars: 0,
+          highestStarRepo: 0
+        },
+        account: {
+          createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+          ageInDays: 20,
+          monthsWithActivity: 1,
+          totalMonthsInWindow: 1,
+          consistencyScore: 1.0
+        },
         issueEngagement: {
           issuesCreated: 5,
           issuesWithComments: 3,
           issuesWithReactions: 2,
           averageCommentsPerIssue: 2
         },
-        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -531,17 +669,44 @@ describe('Evaluation Engine', () => {
 
     it('recommends maintaining consistency for failed activityConsistency with old account', () => {
       const metricsData: AllMetricsData = {
-        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
-        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
-        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
-        account: { ageInDays: 120, monthsWithActivity: 2, totalMonthsInWindow: 12, consistencyRate: 0.16 },
+        prHistory: {
+          totalPRs: 10,
+          mergedPRs: 8,
+          closedWithoutMerge: 2,
+          openPRs: 0,
+          mergeRate: 0.8,
+          averagePRSize: 50,
+          veryShortPRs: 0,
+          mergedPRDates: []
+        },
+        reactions: {
+          totalComments: 10,
+          positiveReactions: 10,
+          negativeReactions: 0,
+          neutralReactions: 0,
+          positiveRatio: 1.0
+        },
+        repoQuality: {
+          contributedRepos: [],
+          qualityRepoCount: 2,
+          averageRepoStars: 0,
+          highestStarRepo: 0
+        },
+        account: {
+          createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000),
+          ageInDays: 120,
+          monthsWithActivity: 2,
+          totalMonthsInWindow: 12,
+          consistencyScore: 0.16
+        },
         issueEngagement: {
           issuesCreated: 5,
           issuesWithComments: 3,
           issuesWithReactions: 2,
           averageCommentsPerIssue: 2
         },
-        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -562,17 +727,44 @@ describe('Evaluation Engine', () => {
 
     it('does not recommend consistency for new accounts (<90 days) with failed activityConsistency', () => {
       const metricsData: AllMetricsData = {
-        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
-        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
-        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
-        account: { ageInDays: 60, monthsWithActivity: 1, totalMonthsInWindow: 2, consistencyRate: 0.5 },
+        prHistory: {
+          totalPRs: 10,
+          mergedPRs: 8,
+          closedWithoutMerge: 2,
+          openPRs: 0,
+          mergeRate: 0.8,
+          averagePRSize: 50,
+          veryShortPRs: 0,
+          mergedPRDates: []
+        },
+        reactions: {
+          totalComments: 10,
+          positiveReactions: 10,
+          negativeReactions: 0,
+          neutralReactions: 0,
+          positiveRatio: 1.0
+        },
+        repoQuality: {
+          contributedRepos: [],
+          qualityRepoCount: 2,
+          averageRepoStars: 0,
+          highestStarRepo: 0
+        },
+        account: {
+          createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+          ageInDays: 60,
+          monthsWithActivity: 1,
+          totalMonthsInWindow: 2,
+          consistencyScore: 0.5
+        },
         issueEngagement: {
           issuesCreated: 5,
           issuesWithComments: 3,
           issuesWithReactions: 2,
           averageCommentsPerIssue: 2
         },
-        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -594,17 +786,44 @@ describe('Evaluation Engine', () => {
 
     it('recommends creating issues for failed issueEngagement', () => {
       const metricsData: AllMetricsData = {
-        prHistory: { totalPRs: 10, mergedPRs: 8, mergeRate: 0.8 },
-        reactions: { positive: 10, negative: 0, sources: { comments: 10, issues: 0 } },
-        repoQuality: { contributedRepos: [], qualityRepoCount: 2, totalStarredContributions: 0 },
-        account: { ageInDays: 180, monthsWithActivity: 6, totalMonthsInWindow: 12, consistencyRate: 0.5 },
+        prHistory: {
+          totalPRs: 10,
+          mergedPRs: 8,
+          closedWithoutMerge: 2,
+          openPRs: 0,
+          mergeRate: 0.8,
+          averagePRSize: 50,
+          veryShortPRs: 0,
+          mergedPRDates: []
+        },
+        reactions: {
+          totalComments: 10,
+          positiveReactions: 10,
+          negativeReactions: 0,
+          neutralReactions: 0,
+          positiveRatio: 1.0
+        },
+        repoQuality: {
+          contributedRepos: [],
+          qualityRepoCount: 2,
+          averageRepoStars: 0,
+          highestStarRepo: 0
+        },
+        account: {
+          createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+          ageInDays: 180,
+          monthsWithActivity: 6,
+          totalMonthsInWindow: 12,
+          consistencyScore: 0.5
+        },
         issueEngagement: {
           issuesCreated: 0,
           issuesWithComments: 0,
           issuesWithReactions: 0,
           averageCommentsPerIssue: 0
         },
-        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] }
+        codeReviews: { reviewsGiven: 10, reviewCommentsGiven: 20, reviewedRepos: [] },
+        ...defaultNewMetrics
       }
 
       const metrics: MetricCheckResult[] = [
@@ -630,6 +849,12 @@ describe('Evaluation Engine', () => {
       user: {
         login: 'test-user',
         createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+        bio: 'A test user',
+        company: 'Test Co',
+        location: 'Test City',
+        websiteUrl: 'https://test.com',
+        followers: { totalCount: 50 },
+        repositories: { totalCount: 10 },
         pullRequests: {
           totalCount: 10,
           nodes: [
@@ -641,6 +866,7 @@ describe('Evaluation Engine', () => {
               closedAt: new Date().toISOString(),
               additions: 100,
               deletions: 50,
+              mergedBy: { login: 'maintainer' },
               repository: {
                 owner: { login: 'org' },
                 name: 'repo',
@@ -655,6 +881,7 @@ describe('Evaluation Engine', () => {
               closedAt: new Date().toISOString(),
               additions: 50,
               deletions: 20,
+              mergedBy: { login: 'maintainer2' },
               repository: {
                 owner: { login: 'org' },
                 name: 'repo2',
@@ -712,12 +939,12 @@ describe('Evaluation Engine', () => {
 
     it('returns a complete AnalysisResult for a passing contributor', () => {
       const data = createTestData()
-      const result = evaluateContributor(data, testConfig, sinceDate)
+      const result = evaluateContributor(data, testConfig, sinceDate, testPRContext)
 
       expect(result.username).toBe('test-user')
       expect(result.passed).toBeDefined()
       expect(result.passedCount).toBeLessThanOrEqual(result.totalMetrics)
-      expect(result.metrics).toHaveLength(8) // All 8 metrics
+      expect(result.metrics).toHaveLength(13) // 12 metrics + suspicious patterns
       expect(result.analyzedAt).toBeInstanceOf(Date)
       expect(result.dataWindowStart).toEqual(sinceDate)
       expect(result.dataWindowEnd).toBeInstanceOf(Date)
@@ -731,6 +958,12 @@ describe('Evaluation Engine', () => {
         user: {
           login: 'new-user',
           createdAt: newAccountDate.toISOString(),
+          bio: null,
+          company: null,
+          location: null,
+          websiteUrl: null,
+          followers: { totalCount: 0 },
+          repositories: { totalCount: 0 },
           pullRequests: {
             totalCount: 0,
             nodes: [],
@@ -748,7 +981,8 @@ describe('Evaluation Engine', () => {
         }
       } as Partial<GraphQLContributorData>)
 
-      const result = evaluateContributor(data, testConfig, sinceDate)
+      const newUserPRContext: PRContext = { ...testPRContext, prAuthor: 'new-user' }
+      const result = evaluateContributor(data, testConfig, sinceDate, newUserPRContext)
 
       expect(result.isNewAccount).toBe(true)
     })
@@ -759,6 +993,12 @@ describe('Evaluation Engine', () => {
         user: {
           login: 'limited-data-user',
           createdAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(),
+          bio: null,
+          company: null,
+          location: null,
+          websiteUrl: null,
+          followers: { totalCount: 0 },
+          repositories: { totalCount: 0 },
           pullRequests: {
             totalCount: 0,
             nodes: [],
@@ -780,7 +1020,8 @@ describe('Evaluation Engine', () => {
         }
       }
 
-      const result = evaluateContributor(data, testConfig, sinceDate)
+      const limitedUserPRContext: PRContext = { ...testPRContext, prAuthor: 'limited-data-user' }
+      const result = evaluateContributor(data, testConfig, sinceDate, limitedUserPRContext)
 
       expect(result.hasLimitedData).toBe(true)
     })
@@ -801,6 +1042,12 @@ describe('Evaluation Engine', () => {
         user: {
           login: 'failing-user',
           createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // Only 10 days old
+          bio: null,
+          company: null,
+          location: null,
+          websiteUrl: null,
+          followers: { totalCount: 0 },
+          repositories: { totalCount: 0 },
           pullRequests: {
             totalCount: 2,
             nodes: [
@@ -812,6 +1059,7 @@ describe('Evaluation Engine', () => {
                 closedAt: new Date().toISOString(),
                 additions: 5,
                 deletions: 1,
+                mergedBy: null,
                 repository: { owner: { login: 'user' }, name: 'small-repo', stargazerCount: 10 }
               },
               {
@@ -822,6 +1070,7 @@ describe('Evaluation Engine', () => {
                 closedAt: new Date().toISOString(),
                 additions: 5,
                 deletions: 1,
+                mergedBy: null,
                 repository: { owner: { login: 'user' }, name: 'small-repo', stargazerCount: 10 }
               }
             ],
@@ -843,7 +1092,8 @@ describe('Evaluation Engine', () => {
         }
       }
 
-      const result = evaluateContributor(data, strictConfig, sinceDate)
+      const failingUserPRContext: PRContext = { ...testPRContext, prAuthor: 'failing-user' }
+      const result = evaluateContributor(data, strictConfig, sinceDate, failingUserPRContext)
 
       expect(result.failedMetrics).toBeDefined()
       expect(Array.isArray(result.failedMetrics)).toBe(true)
@@ -868,7 +1118,7 @@ describe('Evaluation Engine', () => {
       // Create data with good merge rate but low code reviews
       const data = createTestData()
 
-      const result = evaluateContributor(data, strictConfig, sinceDate)
+      const result = evaluateContributor(data, strictConfig, sinceDate, testPRContext)
 
       // prMergeRate should pass (threshold is 0)
       const prMergeRateMetric = result.metrics.find((m) => m.name === 'prMergeRate')
@@ -898,6 +1148,12 @@ describe('Evaluation Engine', () => {
         user: {
           login: 'needs-improvement',
           createdAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+          bio: null,
+          company: null,
+          location: null,
+          websiteUrl: null,
+          followers: { totalCount: 0 },
+          repositories: { totalCount: 0 },
           pullRequests: {
             totalCount: 2,
             nodes: [
@@ -909,6 +1165,7 @@ describe('Evaluation Engine', () => {
                 closedAt: new Date().toISOString(),
                 additions: 10,
                 deletions: 5,
+                mergedBy: null,
                 repository: { owner: { login: 'user' }, name: 'repo', stargazerCount: 50 }
               }
             ],
@@ -930,7 +1187,8 @@ describe('Evaluation Engine', () => {
         }
       }
 
-      const result = evaluateContributor(data, strictConfig, sinceDate)
+      const needsImprovementPRContext: PRContext = { ...testPRContext, prAuthor: 'needs-improvement' }
+      const result = evaluateContributor(data, strictConfig, sinceDate, needsImprovementPRContext)
 
       // With strict thresholds, there should be failed metrics
       expect(result.failedMetrics.length).toBeGreaterThan(0)
@@ -940,7 +1198,7 @@ describe('Evaluation Engine', () => {
 
     it('counts passed metrics correctly', () => {
       const data = createTestData()
-      const result = evaluateContributor(data, testConfig, sinceDate)
+      const result = evaluateContributor(data, testConfig, sinceDate, testPRContext)
 
       const actualPassedCount = result.metrics.filter((m) => m.passed).length
       expect(result.passedCount).toBe(actualPassedCount)

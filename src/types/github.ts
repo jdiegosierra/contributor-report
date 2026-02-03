@@ -93,6 +93,22 @@ export interface GraphQLContributorData {
   user: {
     login: string
     createdAt: string
+    /** User's bio description */
+    bio: string | null
+    /** User's company/affiliation */
+    company: string | null
+    /** User's location */
+    location: string | null
+    /** User's website URL */
+    websiteUrl: string | null
+    /** Follower count */
+    followers: {
+      totalCount: number
+    }
+    /** Public repository count */
+    repositories: {
+      totalCount: number
+    }
     pullRequests: {
       totalCount: number
       nodes: Array<{
@@ -103,6 +119,10 @@ export interface GraphQLContributorData {
         closedAt: string | null
         additions: number
         deletions: number
+        /** User who merged this PR (null if not merged or unknown) */
+        mergedBy: {
+          login: string
+        } | null
         /** Can be null if the repository was deleted or made private */
         repository: {
           owner: { login: string }

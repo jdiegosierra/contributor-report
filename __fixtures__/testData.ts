@@ -2,9 +2,18 @@
  * Shared test data factories to reduce duplication across tests
  */
 
-import type { GraphQLContributorData } from '../src/types/github.js'
+import type { GraphQLContributorData, PRContext } from '../src/types/github.js'
 import type { ContributorQualityConfig } from '../src/types/config.js'
-import type { MetricCheckResult, ReactionData, PRHistoryData, AccountData } from '../src/types/metrics.js'
+import type {
+  MetricCheckResult,
+  ReactionData,
+  PRHistoryData,
+  AccountData,
+  MergerDiversityData,
+  RepoHistoryData,
+  ProfileData,
+  SuspiciousPatternData
+} from '../src/types/metrics.js'
 import { DEFAULT_CONFIG } from '../src/config/defaults.js'
 
 /**
@@ -15,6 +24,12 @@ export function createContributorData(
   overrides: {
     login?: string
     createdAt?: Date
+    bio?: string | null
+    company?: string | null
+    location?: string | null
+    websiteUrl?: string | null
+    followersCount?: number
+    publicReposCount?: number
     pullRequests?: Partial<GraphQLContributorData['user']['pullRequests']>
     contributionsCollection?: Partial<GraphQLContributorData['user']['contributionsCollection']>
     issueComments?: Partial<GraphQLContributorData['user']['issueComments']>
@@ -27,6 +42,12 @@ export function createContributorData(
     user: {
       login: overrides.login ?? 'test-user',
       createdAt: (overrides.createdAt ?? defaultCreatedAt).toISOString(),
+      bio: overrides.bio ?? 'A test user bio',
+      company: overrides.company ?? 'Test Company',
+      location: overrides.location ?? 'Test City',
+      websiteUrl: overrides.websiteUrl ?? 'https://example.com',
+      followers: { totalCount: overrides.followersCount ?? 50 },
+      repositories: { totalCount: overrides.publicReposCount ?? 10 },
       pullRequests: {
         totalCount: 0,
         nodes: [],
@@ -65,10 +86,12 @@ export function createPRNode(
     deletions?: number
     owner?: string
     repo?: string
+    mergedBy?: string | null
   } = {}
 ): GraphQLContributorData['user']['pullRequests']['nodes'][0] {
   const state = overrides.state ?? 'MERGED'
   const merged = overrides.merged ?? state === 'MERGED'
+  const defaultMergedBy = merged ? 'maintainer' : null
 
   return {
     state,
@@ -78,6 +101,14 @@ export function createPRNode(
     closedAt: state !== 'OPEN' ? new Date().toISOString() : null,
     additions: overrides.additions ?? 50,
     deletions: overrides.deletions ?? 20,
+    mergedBy:
+      overrides.mergedBy !== undefined
+        ? overrides.mergedBy
+          ? { login: overrides.mergedBy }
+          : null
+        : defaultMergedBy
+          ? { login: defaultMergedBy }
+          : null,
     repository: {
       owner: { login: overrides.owner ?? 'org' },
       name: overrides.repo ?? 'repo',
@@ -259,4 +290,81 @@ export function createLimitedDataContributor(): GraphQLContributorData {
       pullRequestReviewContributions: { totalCount: 0 }
     }
   })
+}
+
+/**
+ * Create MergerDiversityData for testing
+ */
+export function createMergerDiversityData(overrides: Partial<MergerDiversityData> = {}): MergerDiversityData {
+  return {
+    totalMergedPRs: 10,
+    uniqueMergers: 3,
+    selfMergeCount: 2,
+    othersMergeCount: 8,
+    selfMergesOnOwnRepos: 1,
+    selfMergesOnExternalRepos: 1,
+    externalReposWithMergePrivilege: ['org/repo'],
+    onlySelfMergesOnOwnRepos: false,
+    selfMergeRate: 0.2,
+    mergerLogins: ['maintainer1', 'maintainer2', 'test-user'],
+    ...overrides
+  }
+}
+
+/**
+ * Create RepoHistoryData for testing
+ */
+export function createRepoHistoryData(overrides: Partial<RepoHistoryData> = {}): RepoHistoryData {
+  return {
+    repoName: 'org/repo',
+    totalPRsInRepo: 5,
+    mergedPRsInRepo: 4,
+    closedWithoutMergeInRepo: 1,
+    repoMergeRate: 0.8,
+    isFirstTimeContributor: false,
+    ...overrides
+  }
+}
+
+/**
+ * Create ProfileData for testing
+ */
+export function createProfileData(overrides: Partial<ProfileData> = {}): ProfileData {
+  return {
+    followersCount: 50,
+    publicReposCount: 10,
+    hasBio: true,
+    hasCompany: true,
+    hasLocation: true,
+    hasWebsite: true,
+    completenessScore: 100,
+    ...overrides
+  }
+}
+
+/**
+ * Create SuspiciousPatternData for testing
+ */
+export function createSuspiciousPatternData(overrides: Partial<SuspiciousPatternData> = {}): SuspiciousPatternData {
+  return {
+    detectedPatterns: [],
+    prRate: 0.1,
+    uniqueRepoCount: 5,
+    selfMergeRate: 0.2,
+    accountAgeInDays: 400,
+    ...overrides
+  }
+}
+
+/**
+ * Create a PRContext for testing
+ */
+export function createPRContext(overrides: Partial<PRContext> = {}): PRContext {
+  return {
+    owner: 'test-org',
+    repo: 'test-repo',
+    prNumber: 123,
+    prAuthor: 'test-user',
+    ...overrides
+  }
 }

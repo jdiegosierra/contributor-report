@@ -152,6 +152,123 @@ export interface CodeReviewData {
   reviewedRepos: string[]
 }
 
+/** Merger diversity data - who merges contributor's PRs */
+export interface MergerDiversityData {
+  /** Total number of merged PRs */
+  totalMergedPRs: number
+
+  /** Count of different people who merged PRs */
+  uniqueMergers: number
+
+  /** Number of self-merged PRs */
+  selfMergeCount: number
+
+  /** Number of PRs merged by others */
+  othersMergeCount: number
+
+  /** Self-merges on user's own repositories */
+  selfMergesOnOwnRepos: number
+
+  /** Self-merges on external repositories */
+  selfMergesOnExternalRepos: number
+
+  /** External repos where user has merge privilege */
+  externalReposWithMergePrivilege: string[]
+
+  /** RED FLAG: All merges are self-merges on own repos */
+  onlySelfMergesOnOwnRepos: boolean
+
+  /** Self-merge rate (0-1) */
+  selfMergeRate: number
+
+  /** Logins of users who merged PRs */
+  mergerLogins: string[]
+}
+
+/** Repository-specific history data */
+export interface RepoHistoryData {
+  /** Repository in "owner/repo" format */
+  repoName: string
+
+  /** Total PRs submitted to this specific repo */
+  totalPRsInRepo: number
+
+  /** Merged PRs in this repo */
+  mergedPRsInRepo: number
+
+  /** PRs closed without merge in this repo */
+  closedWithoutMergeInRepo: number
+
+  /** Merge rate in this specific repo (0-1) */
+  repoMergeRate: number
+
+  /** Whether this is user's first contribution to this repo */
+  isFirstTimeContributor: boolean
+}
+
+/** Profile completeness data */
+export interface ProfileData {
+  /** Number of followers */
+  followersCount: number
+
+  /** Number of public repositories */
+  publicReposCount: number
+
+  /** Whether user has a bio */
+  hasBio: boolean
+
+  /** Whether user has company/affiliation */
+  hasCompany: boolean
+
+  /** Whether user has location */
+  hasLocation: boolean
+
+  /** Whether user has website */
+  hasWebsite: boolean
+
+  /** Calculated completeness score (0-100) */
+  completenessScore: number
+}
+
+/** Suspicious pattern severity levels */
+export type PatternSeverity = 'CRITICAL' | 'WARNING'
+
+/** Types of suspicious patterns */
+export type SuspiciousPatternType = 'SPAM_PATTERN' | 'HIGH_PR_RATE' | 'SELF_MERGE_ABUSE' | 'REPO_SPAM'
+
+/** Individual suspicious pattern detection */
+export interface SuspiciousPattern {
+  /** Type of pattern detected */
+  type: SuspiciousPatternType
+
+  /** Severity level */
+  severity: PatternSeverity
+
+  /** Human-readable description */
+  description: string
+
+  /** Evidence data for this pattern */
+  evidence: Record<string, number | string>
+}
+
+/** Suspicious activity pattern data */
+export interface SuspiciousPatternData {
+  /** All detected patterns */
+  detectedPatterns: SuspiciousPattern[]
+
+  /** PRs per day rate */
+  prRate: number
+
+  /** Number of unique repos contributed to */
+  uniqueRepoCount: number
+
+  /** Self-merge rate (0-1) */
+  selfMergeRate: number
+
+  /** Account age in days */
+  accountAgeInDays: number
+}
+
 /** Aggregated metrics from all calculators */
 export interface AllMetricsData {
   prHistory: PRHistoryData
@@ -160,4 +277,8 @@ export interface AllMetricsData {
   account: AccountData
   issueEngagement: IssueEngagementData
   codeReviews: CodeReviewData
+  mergerDiversity: MergerDiversityData
+  repoHistory: RepoHistoryData
+  profile: ProfileData
+  suspiciousPatterns?: SuspiciousPatternData
 }

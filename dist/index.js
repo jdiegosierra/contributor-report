@@ -28302,7 +28302,11 @@ const DEFAULT_THRESHOLDS = {
     accountAge: 0,
     activityConsistency: 0,
     issueEngagement: 0,
-    codeReviews: 0
+    codeReviews: 0,
+    mergerDiversity: 0,
+    repoHistoryMergeRate: 0,
+    repoHistoryMinPRs: 0,
+    profileCompleteness: 0
 };
 /** Default required metrics (must pass for check to pass) */
 const DEFAULT_REQUIRED_METRICS = ['prMergeRate', 'accountAge'];
@@ -28328,7 +28332,8 @@ const DEFAULT_CONFIG = {
     onFail: 'comment',
     labelName: 'needs-review',
     newAccountAction: 'neutral',
-    newAccountThresholdDays: 30
+    newAccountThresholdDays: 30,
+    enableSpamDetection: true
 };
 /** Validate threshold values */
 function validateThresholds(thresholds) {
@@ -28343,6 +28348,18 @@ function validateThresholds(thresholds) {
     }
     if (thresholds.negativeReactions < 0) {
         throw new Error(`negativeReactions threshold must be non-negative, got ${thresholds.negativeReactions}`);
+    }
+    if (thresholds.mergerDiversity < 0) {
+        throw new Error(`mergerDiversity threshold must be non-negative, got ${thresholds.mergerDiversity}`);
+    }
+    if (thresholds.repoHistoryMergeRate < 0 || thresholds.repoHistoryMergeRate > 1) {
+        throw new Error(`repoHistoryMergeRate threshold must be between 0 and 1, got ${thresholds.repoHistoryMergeRate}`);
+    }
+    if (thresholds.repoHistoryMinPRs < 0) {
+        throw new Error(`repoHistoryMinPRs threshold must be non-negative, got ${thresholds.repoHistoryMinPRs}`);
+    }
+    if (thresholds.profileCompleteness < 0 || thresholds.profileCompleteness > 100) {
+        throw new Error(`profileCompleteness threshold must be between 0 and 100, got ${thresholds.profileCompleteness}`);
     }
 }
 /** Merge custom thresholds with defaults */
@@ -28361,7 +28378,12 @@ const VALID_METRIC_NAMES = [
     'accountAge',
     'activityConsistency',
     'issueEngagement',
-    'codeReviews'
+    'codeReviews',
+    'mergerDiversity',
+    'repoHistoryMergeRate',
+    'repoHistoryMinPRs',
+    'profileCompleteness',
+    'suspiciousPatterns'
 ];
 /** Validate required metrics list */
 function validateRequiredMetrics(metrics) {
@@ -28492,6 +28514,22 @@ function parseInputs() {
     if (negativeReactionsInput) {
         customThresholds.negativeReactions = parseIntSafe(negativeReactionsInput, 'threshold-negative-reactions', DEFAULT_CONFIG.thresholds.negativeReactions);
     }
+    const mergerDiversityInput = getInput('threshold-merger-diversity');
+    if (mergerDiversityInput) {
+        customThresholds.mergerDiversity = parseIntSafe(mergerDiversityInput, 'threshold-merger-diversity', DEFAULT_CONFIG.thresholds.mergerDiversity);
+    }
+    const repoHistoryMergeRateInput = getInput('threshold-repo-history-merge-rate');
+    if (repoHistoryMergeRateInput) {
+        customThresholds.repoHistoryMergeRate = parseFloatSafe(repoHistoryMergeRateInput, 'threshold-repo-history-merge-rate', DEFAULT_CONFIG.thresholds.repoHistoryMergeRate);
+    }
+    const repoHistoryMinPRsInput = getInput('threshold-repo-history-min-prs');
+    if (repoHistoryMinPRsInput) {
+        customThresholds.repoHistoryMinPRs = parseIntSafe(repoHistoryMinPRsInput, 'threshold-repo-history-min-prs', DEFAULT_CONFIG.thresholds.repoHistoryMinPRs);
+    }
+    const profileCompletenessInput = getInput('threshold-profile-completeness');
+    if (profileCompletenessInput) {
+        customThresholds.profileCompleteness = parseIntSafe(profileCompletenessInput, 'threshold-profile-completeness', DEFAULT_CONFIG.thresholds.profileCompleteness);
+    }
     const thresholds = mergeThresholds(customThresholds);
     // Parse required metrics
     const requiredMetricsInput = getInput('required-metrics');
@@ -28510,6 +28548,10 @@ function parseInputs() {
     const dryRun = getInput('dry-run').toLowerCase() === 'true';
     const newAccountAction = validateNewAccountAction(getInput('new-account-action') || DEFAULT_CONFIG.newAccountAction);
     const newAccountThresholdDays = parseIntSafe(getInput('new-account-threshold-days'), 'new-account-threshold-days', DEFAULT_CONFIG.newAccountThresholdDays);
+    const enableSpamDetectionInput = getInput('enable-spam-detection');
+    const enableSpamDetection = enableSpamDetectionInput === ''
+        ? DEFAULT_CONFIG.enableSpamDetection
+        : enableSpamDetectionInput.toLowerCase() !== 'false';
     const config = {
         githubToken,
         thresholds,
@@ -28522,7 +28564,8 @@ function parseInputs() {
         labelName,
         dryRun,
         newAccountAction,
-        newAccountThresholdDays
+        newAccountThresholdDays,
+        enableSpamDetection
     };
     // Validate all config values
     validateConfig(config);
@@ -33262,6 +33305,12 @@ query ContributorAnalysis($username: String!, $since: DateTime!, $prCursor: Stri
   user(login: $username) {
     login
     createdAt
+    bio
+    company
+    location
+    websiteUrl
+    followers { totalCount }
+    repositories(privacy: PUBLIC) { totalCount }
 
     pullRequests(
       first: 100
@@ -33278,6 +33327,7 @@ query ContributorAnalysis($username: String!, $since: DateTime!, $prCursor: Stri
         closedAt
         additions
         deletions
+        mergedBy { login }
         repository {
           owner { login }
           name
@@ -34336,27 +34386,637 @@ function checkCodeReviews(data, threshold) {
 }
 
 /**
+ * Merger diversity metric calculator
+ * Measures trust through analyzing who merges contributor's PRs
+ */
+/**
+ * Extract merger diversity data from GraphQL response
+ *
+ * @param data - GraphQL contributor data
+ * @param username - The contributor's username (for self-merge detection)
+ * @param sinceDate - Filter PRs created after this date
+ * @returns MergerDiversityData with merger analysis
+ */
+function extractMergerDiversityData(data, username, sinceDate) {
+    const userLower = username.toLowerCase();
+    // Filter merged PRs within the analysis window
+    const mergedPRs = data.user.pullRequests.nodes.filter((pr) => {
+        if (!pr.merged || !pr.mergedAt)
+            return false;
+        const mergedDate = new Date(pr.mergedAt);
+        return mergedDate >= sinceDate;
+    });
+    debug(`Merger diversity: analyzing ${mergedPRs.length} merged PRs for ${username}`);
+    // Track unique mergers and categorize self-merges
+    const mergerLogins = new Set();
+    let selfMergeCount = 0;
+    let othersMergeCount = 0;
+    let selfMergesOnOwnRepos = 0;
+    let selfMergesOnExternalRepos = 0;
+    const externalReposWithMergePrivilege = new Set();
+    for (const pr of mergedPRs) {
+        const mergerLogin = pr.mergedBy?.login?.toLowerCase();
+        const repoOwner = pr.repository?.owner?.login?.toLowerCase();
+        if (mergerLogin) {
+            mergerLogins.add(mergerLogin);
+            if (mergerLogin === userLower) {
+                // Self-merge detected
+                selfMergeCount++;
+                if (repoOwner === userLower) {
+                    // Self-merge on own repository
+                    selfMergesOnOwnRepos++;
+                }
+                else if (pr.repository) {
+                    // Self-merge on external repository (user has merge privilege)
+                    selfMergesOnExternalRepos++;
+                    const repoFullName = `${pr.repository.owner.login}/${pr.repository.name}`;
+                    externalReposWithMergePrivilege.add(repoFullName);
+                }
+            }
+            else {
+                othersMergeCount++;
+            }
+        }
+    }
+    const totalMergedPRs = mergedPRs.length;
+    const selfMergeRate = totalMergedPRs > 0 ? selfMergeCount / totalMergedPRs : 0;
+    // RED FLAG: All merges are self-merges on own repos (no external trust)
+    const onlySelfMergesOnOwnRepos = totalMergedPRs > 0 && selfMergesOnOwnRepos === totalMergedPRs && othersMergeCount === 0;
+    debug(`Merger diversity results: ${mergerLogins.size} unique mergers, ` +
+        `${selfMergeCount} self-merges (${selfMergesOnOwnRepos} own repos, ${selfMergesOnExternalRepos} external), ` +
+        `${othersMergeCount} by others, red flag: ${onlySelfMergesOnOwnRepos}`);
+    return {
+        totalMergedPRs,
+        uniqueMergers: mergerLogins.size,
+        selfMergeCount,
+        othersMergeCount,
+        selfMergesOnOwnRepos,
+        selfMergesOnExternalRepos,
+        externalReposWithMergePrivilege: Array.from(externalReposWithMergePrivilege),
+        onlySelfMergesOnOwnRepos,
+        selfMergeRate,
+        mergerLogins: Array.from(mergerLogins)
+    };
+}
+/**
+ * Check merger diversity against threshold
+ *
+ * @param data - Extracted merger diversity data
+ * @param threshold - Minimum unique mergers to pass
+ * @returns MetricCheckResult with pass/fail status
+ */
+function checkMergerDiversity(data, threshold) {
+    // No merged PRs = neutral (pass if threshold is 0)
+    if (data.totalMergedPRs === 0) {
+        return {
+            name: 'mergerDiversity',
+            rawValue: 0,
+            threshold,
+            passed: threshold === 0,
+            details: 'No merged PRs found in analysis window',
+            dataPoints: 0
+        };
+    }
+    // RED FLAG: All self-merges on own repos - this is a trust issue
+    if (data.onlySelfMergesOnOwnRepos && threshold > 0) {
+        return {
+            name: 'mergerDiversity',
+            rawValue: 0,
+            threshold,
+            passed: false,
+            details: `All ${data.totalMergedPRs} merged PRs are self-merges on own repositories. No external trust demonstrated.`,
+            dataPoints: data.totalMergedPRs
+        };
+    }
+    const uniqueMergers = data.uniqueMergers;
+    const passed = uniqueMergers >= threshold;
+    let details;
+    const selfMergePercent = (data.selfMergeRate * 100).toFixed(0);
+    if (data.externalReposWithMergePrivilege.length > 0) {
+        // Has merge privilege on external repos - this is a trust signal
+        details =
+            `${uniqueMergers} unique maintainers merged PRs. ` +
+                `Has merge rights on ${data.externalReposWithMergePrivilege.length} external repos. ` +
+                `Self-merge rate: ${selfMergePercent}%`;
+    }
+    else if (data.othersMergeCount > 0) {
+        details =
+            `${uniqueMergers} unique maintainers merged PRs. ` +
+                `${data.othersMergeCount}/${data.totalMergedPRs} merged by others. ` +
+                `Self-merge rate: ${selfMergePercent}%`;
+    }
+    else {
+        details = `${uniqueMergers} unique merger (self only). ` + `All ${data.totalMergedPRs} PRs are self-merges.`;
+    }
+    if (threshold > 0) {
+        details += passed ? ` (meets threshold >= ${threshold})` : ` (below threshold >= ${threshold})`;
+    }
+    return {
+        name: 'mergerDiversity',
+        rawValue: uniqueMergers,
+        threshold,
+        passed,
+        details,
+        dataPoints: data.totalMergedPRs
+    };
+}
+
+/**
+ * Repository history metric calculator
+ * Measures contributor's track record in a specific repository
+ */
+/**
+ * Extract repository-specific history data from GraphQL response
+ *
+ * @param data - GraphQL contributor data
+ * @param prContext - Context of the PR (owner, repo)
+ * @param sinceDate - Filter PRs created after this date
+ * @returns RepoHistoryData with repository-specific metrics
+ */
+function extractRepoHistoryData(data, prContext, sinceDate) {
+    const targetRepo = `${prContext.owner}/${prContext.repo}`.toLowerCase();
+    // Filter PRs to only those in the target repository within the analysis window
+    const repoPRs = data.user.pullRequests.nodes.filter((pr) => {
+        if (!pr.repository)
+            return false;
+        const prRepo = `${pr.repository.owner.login}/${pr.repository.name}`.toLowerCase();
+        if (prRepo !== targetRepo)
+            return false;
+        const prDate = new Date(pr.createdAt);
+        return prDate >= sinceDate;
+    });
+    const mergedPRs = repoPRs.filter((pr) => pr.merged);
+    const closedWithoutMerge = repoPRs.filter((pr) => pr.state === 'CLOSED' && !pr.merged);
+    // Calculate merge rate only from resolved PRs (not open ones)
+    const resolvedPRs = mergedPRs.length + closedWithoutMerge.length;
+    const repoMergeRate = resolvedPRs > 0 ? mergedPRs.length / resolvedPRs : 0;
+    // First-time contributor if no previous merged PRs in this repo
+    const isFirstTimeContributor = mergedPRs.length === 0;
+    debug(`Repo history for ${targetRepo}: ${repoPRs.length} total PRs, ` +
+        `${mergedPRs.length} merged, ${closedWithoutMerge.length} closed without merge, ` +
+        `merge rate: ${(repoMergeRate * 100).toFixed(1)}%, first-time: ${isFirstTimeContributor}`);
+    return {
+        repoName: `${prContext.owner}/${prContext.repo}`,
+        totalPRsInRepo: repoPRs.length,
+        mergedPRsInRepo: mergedPRs.length,
+        closedWithoutMergeInRepo: closedWithoutMerge.length,
+        repoMergeRate,
+        isFirstTimeContributor
+    };
+}
+/**
+ * Check repository merge rate against threshold
+ *
+ * @param data - Extracted repo history data
+ * @param threshold - Minimum merge rate (0-1) to pass
+ * @returns MetricCheckResult with pass/fail status
+ */
+function checkRepoHistoryMergeRate(data, threshold) {
+    // No PRs in this repo = first-time contributor, handle specially
+    if (data.totalPRsInRepo === 0) {
+        return {
+            name: 'repoHistoryMergeRate',
+            rawValue: 0,
+            threshold,
+            passed: threshold === 0,
+            details: `First-time contributor to ${data.repoName}. No prior PR history.`,
+            dataPoints: 0
+        };
+    }
+    // No resolved PRs yet (all open) = neutral
+    if (data.mergedPRsInRepo + data.closedWithoutMergeInRepo === 0) {
+        return {
+            name: 'repoHistoryMergeRate',
+            rawValue: 0,
+            threshold,
+            passed: threshold === 0,
+            details: `All ${data.totalPRsInRepo} PRs in ${data.repoName} are still open.`,
+            dataPoints: data.totalPRsInRepo
+        };
+    }
+    const mergeRate = data.repoMergeRate;
+    const passed = mergeRate >= threshold;
+    const mergeRatePercent = (mergeRate * 100).toFixed(1);
+    const thresholdPercent = (threshold * 100).toFixed(0);
+    const prInfo = `${data.mergedPRsInRepo}/${data.mergedPRsInRepo + data.closedWithoutMergeInRepo} PRs merged`;
+    let details;
+    if (passed) {
+        details = `Repo merge rate ${mergeRatePercent}% meets threshold (>= ${thresholdPercent}%). ${prInfo} in ${data.repoName}`;
+    }
+    else {
+        details = `Repo merge rate ${mergeRatePercent}% below threshold (>= ${thresholdPercent}%). ${prInfo} in ${data.repoName}`;
+    }
+    return {
+        name: 'repoHistoryMergeRate',
+        rawValue: mergeRate,
+        threshold,
+        passed,
+        details,
+        dataPoints: data.totalPRsInRepo
+    };
+}
+/**
+ * Check minimum PRs in repository against threshold
+ *
+ * @param data - Extracted repo history data
+ * @param threshold - Minimum number of previous PRs to pass
+ * @returns MetricCheckResult with pass/fail status
+ */
+function checkRepoHistoryMinPRs(data, threshold) {
+    const totalPRs = data.totalPRsInRepo;
+    const passed = totalPRs >= threshold;
+    let details;
+    if (data.isFirstTimeContributor) {
+        details = `First-time contributor to ${data.repoName}. No prior PR history.`;
+    }
+    else if (passed) {
+        details = `Has ${totalPRs} PRs in ${data.repoName} (meets threshold >= ${threshold})`;
+    }
+    else {
+        details = `Has ${totalPRs} PRs in ${data.repoName} (below threshold >= ${threshold})`;
+    }
+    return {
+        name: 'repoHistoryMinPRs',
+        rawValue: totalPRs,
+        threshold,
+        passed,
+        details,
+        dataPoints: totalPRs
+    };
+}
+
+/**
+ * Profile completeness metric calculator
+ * Measures account profile richness as a legitimacy signal
+ */
+/**
+ * Scoring weights for profile completeness (total: 100 points)
+ *
+ * - Followers: Up to 40 points (progressive)
+ * - Public repos: Up to 20 points (progressive)
+ * - Bio: 20 points
+ * - Company: 20 points
+ * - Location: 0 points (optional, doesn't affect score)
+ * - Website: 0 points (optional, doesn't affect score)
+ */
+const SCORING = {
+    FOLLOWERS_BASE: 20, // > 0 followers
+    FOLLOWERS_MID: 10, // >= 10 followers (adds to base)
+    FOLLOWERS_HIGH: 10, // >= 50 followers (adds to mid)
+    REPOS_BASE: 15, // > 0 public repos
+    REPOS_HIGH: 5, // >= 5 public repos (adds to base)
+    BIO: 20,
+    COMPANY: 20
+};
+/**
+ * Extract profile completeness data from GraphQL response
+ *
+ * @param data - GraphQL contributor data
+ * @returns ProfileData with profile analysis
+ */
+function extractProfileData(data) {
+    const user = data.user;
+    const followersCount = user.followers?.totalCount ?? 0;
+    const publicReposCount = user.repositories?.totalCount ?? 0;
+    const hasBio = Boolean(user.bio && user.bio.trim().length > 0);
+    const hasCompany = Boolean(user.company && user.company.trim().length > 0);
+    const hasLocation = Boolean(user.location && user.location.trim().length > 0);
+    const hasWebsite = Boolean(user.websiteUrl && user.websiteUrl.trim().length > 0);
+    // Calculate completeness score
+    let score = 0;
+    // Followers scoring (up to 40 points)
+    if (followersCount > 0) {
+        score += SCORING.FOLLOWERS_BASE;
+        if (followersCount >= 10) {
+            score += SCORING.FOLLOWERS_MID;
+            if (followersCount >= 50) {
+                score += SCORING.FOLLOWERS_HIGH;
+            }
+        }
+    }
+    // Public repos scoring (up to 20 points)
+    if (publicReposCount > 0) {
+        score += SCORING.REPOS_BASE;
+        if (publicReposCount >= 5) {
+            score += SCORING.REPOS_HIGH;
+        }
+    }
+    // Bio scoring (20 points)
+    if (hasBio) {
+        score += SCORING.BIO;
+    }
+    // Company scoring (20 points)
+    if (hasCompany) {
+        score += SCORING.COMPANY;
+    }
+    debug(`Profile completeness: score=${score}, followers=${followersCount}, repos=${publicReposCount}, ` +
+        `bio=${hasBio}, company=${hasCompany}, location=${hasLocation}, website=${hasWebsite}`);
+    return {
+        followersCount,
+        publicReposCount,
+        hasBio,
+        hasCompany,
+        hasLocation,
+        hasWebsite,
+        completenessScore: score
+    };
+}
+/**
+ * Check profile completeness against threshold
+ *
+ * @param data - Extracted profile data
+ * @param threshold - Minimum completeness score (0-100) to pass
+ * @returns MetricCheckResult with pass/fail status
+ */
+function checkProfileCompleteness(data, threshold) {
+    const score = data.completenessScore;
+    const passed = score >= threshold;
+    // Build details about what's present/missing
+    const present = [];
+    const missing = [];
+    if (data.followersCount > 0) {
+        present.push(`${data.followersCount} followers`);
+    }
+    else {
+        missing.push('followers');
+    }
+    if (data.publicReposCount > 0) {
+        present.push(`${data.publicReposCount} public repos`);
+    }
+    else {
+        missing.push('public repos');
+    }
+    if (data.hasBio) {
+        present.push('bio');
+    }
+    else {
+        missing.push('bio');
+    }
+    if (data.hasCompany) {
+        present.push('company');
+    }
+    else {
+        missing.push('company');
+    }
+    let details = `Profile score: ${score}/100.`;
+    if (present.length > 0) {
+        details += ` Has: ${present.join(', ')}.`;
+    }
+    if (missing.length > 0 && !passed) {
+        details += ` Missing: ${missing.join(', ')}.`;
+    }
+    if (threshold > 0) {
+        details += passed ? ` (meets threshold >= ${threshold})` : ` (below threshold >= ${threshold})`;
+    }
+    return {
+        name: 'profileCompleteness',
+        rawValue: score,
+        threshold,
+        passed,
+        details,
+        dataPoints: 1 // Profile is a single data point
+    };
+}
+
+/**
+ * Suspicious activity pattern detector
+ * Analyzes cross-metric data to detect spam patterns
+ */
+/**
+ * Default thresholds for spam pattern detection
+ * These can be overridden via configuration
+ */
+const SPAM_DETECTION_THRESHOLDS = {
+    /** Account age in days to consider "new" for spam detection */
+    NEW_ACCOUNT_DAYS: 30,
+    /** PR count that triggers spam pattern for new accounts */
+    NEW_ACCOUNT_HIGH_PR_COUNT: 25,
+    /** Repo count that triggers spam pattern for new accounts */
+    NEW_ACCOUNT_HIGH_REPO_COUNT: 10,
+    /** PR rate (PRs per day) that triggers warning */
+    HIGH_PR_RATE: 2.0,
+    /** Self-merge rate on low-quality repos that triggers pattern */
+    SELF_MERGE_ABUSE_RATE: 0.5,
+    /** Minimum stars to not be considered "low quality" */
+    LOW_QUALITY_REPO_STARS: 10,
+    /** Number of repos that triggers repo spam check */
+    REPO_SPAM_COUNT: 10,
+    /** Average stars below which repo spam is flagged */
+    REPO_SPAM_AVG_STARS: 10
+};
+/**
+ * Extract suspicious pattern data from aggregated metrics
+ *
+ * @param metrics - Aggregated metrics data
+ * @param username - The contributor's username
+ * @returns SuspiciousPatternData with detected patterns
+ */
+function extractSuspiciousPatterns(metrics, username) {
+    const detectedPatterns = [];
+    const accountAgeInDays = metrics.account.ageInDays;
+    const totalPRs = metrics.prHistory.totalPRs;
+    const uniqueRepoCount = metrics.repoQuality.contributedRepos.length;
+    const selfMergeRate = metrics.mergerDiversity.selfMergeRate;
+    const prRate = accountAgeInDays > 0 ? totalPRs / accountAgeInDays : totalPRs;
+    debug(`Suspicious pattern analysis for ${username}: ` +
+        `account age=${accountAgeInDays}d, PRs=${totalPRs}, repos=${uniqueRepoCount}, ` +
+        `self-merge rate=${(selfMergeRate * 100).toFixed(1)}%, PR rate=${prRate.toFixed(2)}/day`);
+    // Pattern 1: SPAM_PATTERN (CRITICAL)
+    // New account + high PR volume + many repos = classic spam pattern
+    if (accountAgeInDays < SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_DAYS &&
+        totalPRs > SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_HIGH_PR_COUNT &&
+        uniqueRepoCount > SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_HIGH_REPO_COUNT) {
+        detectedPatterns.push({
+            type: 'SPAM_PATTERN',
+            severity: 'CRITICAL',
+            description: `New account (${accountAgeInDays} days) with unusually high activity: ` +
+                `${totalPRs} PRs across ${uniqueRepoCount} different repositories.`,
+            evidence: {
+                accountAgeDays: accountAgeInDays,
+                totalPRs,
+                uniqueRepoCount,
+                threshold_accountAge: SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_DAYS,
+                threshold_prCount: SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_HIGH_PR_COUNT,
+                threshold_repoCount: SPAM_DETECTION_THRESHOLDS.NEW_ACCOUNT_HIGH_REPO_COUNT
+            }
+        });
+    }
+    // Pattern 2: HIGH_PR_RATE (WARNING)
+    // Abnormally high PR submission rate
+    if (prRate > SPAM_DETECTION_THRESHOLDS.HIGH_PR_RATE) {
+        detectedPatterns.push({
+            type: 'HIGH_PR_RATE',
+            severity: 'WARNING',
+            description: `High PR submission rate: ${prRate.toFixed(2)} PRs/day over account lifetime. ` +
+                `This may indicate automated or low-quality submissions.`,
+            evidence: {
+                prRate: parseFloat(prRate.toFixed(2)),
+                totalPRs,
+                accountAgeDays: accountAgeInDays,
+                threshold: SPAM_DETECTION_THRESHOLDS.HIGH_PR_RATE
+            }
+        });
+    }
+    // Pattern 3: SELF_MERGE_ABUSE (CRITICAL)
+    // High rate of self-merges on low-quality repos (< 10 stars)
+    const lowQualityRepos = metrics.repoQuality.contributedRepos.filter((repo) => repo.stars < SPAM_DETECTION_THRESHOLDS.LOW_QUALITY_REPO_STARS);
+    const lowQualityPRs = lowQualityRepos.reduce((sum, repo) => sum + repo.mergedPRCount, 0);
+    const totalMergedPRs = metrics.mergerDiversity.totalMergedPRs;
+    if (totalMergedPRs > 0 &&
+        selfMergeRate > SPAM_DETECTION_THRESHOLDS.SELF_MERGE_ABUSE_RATE &&
+        lowQualityPRs / totalMergedPRs > SPAM_DETECTION_THRESHOLDS.SELF_MERGE_ABUSE_RATE) {
+        detectedPatterns.push({
+            type: 'SELF_MERGE_ABUSE',
+            severity: 'CRITICAL',
+            description: `High rate of self-merges on low-quality repositories. ` +
+                `${(selfMergeRate * 100).toFixed(0)}% self-merge rate with ` +
+                `${lowQualityPRs}/${totalMergedPRs} PRs to repos with <${SPAM_DETECTION_THRESHOLDS.LOW_QUALITY_REPO_STARS} stars.`,
+            evidence: {
+                selfMergeRate: parseFloat((selfMergeRate * 100).toFixed(1)),
+                lowQualityPRs,
+                totalMergedPRs,
+                lowQualityRepoCount: lowQualityRepos.length,
+                threshold_selfMergeRate: SPAM_DETECTION_THRESHOLDS.SELF_MERGE_ABUSE_RATE * 100,
+                threshold_stars: SPAM_DETECTION_THRESHOLDS.LOW_QUALITY_REPO_STARS
+            }
+        });
+    }
+    // Pattern 4: REPO_SPAM (WARNING)
+    // Many repos but all low quality
+    if (uniqueRepoCount > SPAM_DETECTION_THRESHOLDS.REPO_SPAM_COUNT &&
+        metrics.repoQuality.averageRepoStars < SPAM_DETECTION_THRESHOLDS.REPO_SPAM_AVG_STARS) {
+        detectedPatterns.push({
+            type: 'REPO_SPAM',
+            severity: 'WARNING',
+            description: `Contributions spread across ${uniqueRepoCount} repositories with an average of only ` +
+                `${metrics.repoQuality.averageRepoStars.toFixed(0)} stars. May indicate targeting of low-quality repos.`,
+            evidence: {
+                uniqueRepoCount,
+                averageStars: parseFloat(metrics.repoQuality.averageRepoStars.toFixed(1)),
+                threshold_repoCount: SPAM_DETECTION_THRESHOLDS.REPO_SPAM_COUNT,
+                threshold_avgStars: SPAM_DETECTION_THRESHOLDS.REPO_SPAM_AVG_STARS
+            }
+        });
+    }
+    if (detectedPatterns.length > 0) {
+        debug(`Detected ${detectedPatterns.length} suspicious patterns for ${username}`);
+        for (const pattern of detectedPatterns) {
+            debug(`  - ${pattern.type} (${pattern.severity}): ${pattern.description}`);
+        }
+    }
+    else {
+        debug(`No suspicious patterns detected for ${username}`);
+    }
+    return {
+        detectedPatterns,
+        prRate,
+        uniqueRepoCount,
+        selfMergeRate,
+        accountAgeInDays
+    };
+}
+/**
+ * Check if there are any critical spam patterns
+ *
+ * @param data - Suspicious pattern data
+ * @returns true if any critical patterns detected
+ */
+function hasCriticalSpamPatterns(data) {
+    return data.detectedPatterns.some((pattern) => pattern.severity === 'CRITICAL');
+}
+/**
+ * Check suspicious patterns (hard fail on critical patterns)
+ *
+ * @param data - Extracted suspicious pattern data
+ * @returns MetricCheckResult with pass/fail status
+ */
+function checkSuspiciousPatterns(data) {
+    const criticalPatterns = data.detectedPatterns.filter((p) => p.severity === 'CRITICAL');
+    const warningPatterns = data.detectedPatterns.filter((p) => p.severity === 'WARNING');
+    // No patterns = pass
+    if (data.detectedPatterns.length === 0) {
+        return {
+            name: 'suspiciousPatterns',
+            rawValue: 0,
+            threshold: 0,
+            passed: true,
+            details: 'No suspicious activity patterns detected.',
+            dataPoints: 1
+        };
+    }
+    // Critical patterns = hard fail
+    if (criticalPatterns.length > 0) {
+        const patternTypes = criticalPatterns.map((p) => p.type).join(', ');
+        return {
+            name: 'suspiciousPatterns',
+            rawValue: criticalPatterns.length,
+            threshold: 0,
+            passed: false,
+            details: `CRITICAL: ${criticalPatterns.length} suspicious pattern(s) detected: ${patternTypes}. ` +
+                criticalPatterns.map((p) => p.description).join(' '),
+            dataPoints: 1
+        };
+    }
+    // Warnings only = pass but note in details
+    const patternTypes = warningPatterns.map((p) => p.type).join(', ');
+    return {
+        name: 'suspiciousPatterns',
+        rawValue: warningPatterns.length,
+        threshold: 0,
+        passed: true,
+        details: `${warningPatterns.length} warning pattern(s) noted: ${patternTypes}. ` +
+            warningPatterns.map((p) => p.description).join(' '),
+        dataPoints: 1
+    };
+}
+
+/**
  * Main evaluation engine that checks all metrics against thresholds
  */
 /**
  * Extract all metrics data from GraphQL response
  */
-function extractAllMetrics(data, config, sinceDate) {
-    return {
-        prHistory: extractPRHistoryData(data, sinceDate),
-        repoQuality: extractRepoQualityData(data, config.minimumStars, sinceDate),
-        reactions: extractReactionData(data),
-        account: extractAccountData(data, config.analysisWindowMonths),
-        issueEngagement: extractIssueEngagementData(data),
-        codeReviews: extractCodeReviewData(data)
+function extractAllMetrics(data, config, sinceDate, prContext) {
+    const username = data.user.login;
+    // Extract base metrics
+    const prHistory = extractPRHistoryData(data, sinceDate);
+    const repoQuality = extractRepoQualityData(data, config.minimumStars, sinceDate);
+    const reactions = extractReactionData(data);
+    const account = extractAccountData(data, config.analysisWindowMonths);
+    const issueEngagement = extractIssueEngagementData(data);
+    const codeReviews = extractCodeReviewData(data);
+    // Extract new metrics
+    const mergerDiversity = extractMergerDiversityData(data, username, sinceDate);
+    const repoHistory = extractRepoHistoryData(data, prContext, sinceDate);
+    const profile = extractProfileData(data);
+    const baseMetrics = {
+        prHistory,
+        repoQuality,
+        reactions,
+        account,
+        issueEngagement,
+        codeReviews,
+        mergerDiversity,
+        repoHistory,
+        profile
     };
+    // Extract suspicious patterns if spam detection is enabled (cross-metric analysis)
+    if (config.enableSpamDetection) {
+        baseMetrics.suspiciousPatterns = extractSuspiciousPatterns({
+            prHistory,
+            repoQuality,
+            account,
+            mergerDiversity
+        }, username);
+    }
+    return baseMetrics;
 }
 /**
  * Check all metrics against their thresholds
  */
 function checkAllMetrics(metricsData, config) {
     const thresholds = config.thresholds;
-    return [
+    const baseChecks = [
         checkPRMergeRate(metricsData.prHistory, thresholds.prMergeRate),
         checkRepoQuality(metricsData.repoQuality, thresholds.repoQuality, config.minimumStars),
         checkPositiveReactions(metricsData.reactions, thresholds.positiveReactions),
@@ -34364,8 +35024,17 @@ function checkAllMetrics(metricsData, config) {
         checkAccountAge(metricsData.account, thresholds.accountAge),
         checkActivityConsistency(metricsData.account, thresholds.activityConsistency),
         checkIssueEngagement(metricsData.issueEngagement, thresholds.issueEngagement),
-        checkCodeReviews(metricsData.codeReviews, thresholds.codeReviews)
+        checkCodeReviews(metricsData.codeReviews, thresholds.codeReviews),
+        checkMergerDiversity(metricsData.mergerDiversity, thresholds.mergerDiversity),
+        checkRepoHistoryMergeRate(metricsData.repoHistory, thresholds.repoHistoryMergeRate),
+        checkRepoHistoryMinPRs(metricsData.repoHistory, thresholds.repoHistoryMinPRs),
+        checkProfileCompleteness(metricsData.profile, thresholds.profileCompleteness)
     ];
+    // Add suspicious patterns check if spam detection is enabled
+    if (metricsData.suspiciousPatterns) {
+        baseChecks.push(checkSuspiciousPatterns(metricsData.suspiciousPatterns));
+    }
+    return baseChecks;
 }
 /**
  * Determine if all required metrics passed
@@ -34387,6 +35056,11 @@ function determinePassStatus(metrics, requiredMetrics) {
 function generateRecommendations(metricsData, metrics) {
     const recommendations = [];
     const failedMetrics = metrics.filter((m) => !m.passed);
+    // Check for critical spam patterns FIRST - this takes priority
+    if (metricsData.suspiciousPatterns && hasCriticalSpamPatterns(metricsData.suspiciousPatterns)) {
+        recommendations.push('CRITICAL: Suspicious activity patterns detected. This account exhibits characteristics commonly associated with spam or automated contributions.');
+        return recommendations; // Early return - other recommendations irrelevant
+    }
     for (const metric of failedMetrics) {
         switch (metric.name) {
             case 'prMergeRate':
@@ -34415,6 +35089,38 @@ function generateRecommendations(metricsData, metrics) {
             case 'issueEngagement':
                 recommendations.push('Create issues to report bugs or suggest features, and engage with the community.');
                 break;
+            case 'mergerDiversity':
+                if (metricsData.mergerDiversity.onlySelfMergesOnOwnRepos) {
+                    recommendations.push('Build trust by contributing to external projects where other maintainers can review and merge your work.');
+                }
+                else {
+                    recommendations.push('Increase trust signals by contributing to more diverse projects and getting PRs merged by different maintainers.');
+                }
+                break;
+            case 'repoHistoryMergeRate':
+                if (metricsData.repoHistory.isFirstTimeContributor) {
+                    recommendations.push('Welcome! This is your first contribution to this repository.');
+                }
+                else {
+                    recommendations.push('Review previous rejected PRs in this repository to understand maintainer expectations.');
+                }
+                break;
+            case 'repoHistoryMinPRs':
+                recommendations.push('Build trust by making consistent, quality contributions to this repository over time.');
+                break;
+            case 'profileCompleteness': {
+                const missing = [];
+                if (!metricsData.profile.hasBio)
+                    missing.push('bio');
+                if (!metricsData.profile.hasCompany)
+                    missing.push('company/affiliation');
+                if (metricsData.profile.followersCount === 0)
+                    missing.push('GitHub followers (engage with community)');
+                if (missing.length > 0) {
+                    recommendations.push(`Complete your GitHub profile by adding: ${missing.join(', ')}. A complete profile builds trust with maintainers.`);
+                }
+                break;
+            }
         }
     }
     // General recommendation if no specific recommendations
@@ -34426,11 +35132,11 @@ function generateRecommendations(metricsData, metrics) {
 /**
  * Main evaluation function
  */
-function evaluateContributor(data, config, sinceDate) {
+function evaluateContributor(data, config, sinceDate, prContext) {
     const username = data.user.login;
     const now = new Date();
     // Extract all metrics data
-    const metricsData = extractAllMetrics(data, config, sinceDate);
+    const metricsData = extractAllMetrics(data, config, sinceDate, prContext);
     // Check all metrics against thresholds
     const metrics = checkAllMetrics(metricsData, config);
     // Determine pass/fail based on required metrics
@@ -34493,15 +35199,14 @@ function generateAnalysisComment(result, config) {
         lines.push('');
     }
     // Metric results table
-    lines.push('### Metric Results');
-    lines.push('');
-    lines.push('| Metric | Value | Threshold | Status |');
-    lines.push('|--------|-------|-----------|--------|');
+    lines.push('| Metric | Description | Value | Threshold | Status |');
+    lines.push('|--------|-------------|-------|-----------|--------|');
     for (const metric of result.metrics) {
         const statusIcon = metric.passed ? '✅' : '❌';
         const formattedValue = formatMetricValue(metric);
         const formattedThreshold = formatThreshold(metric);
-        lines.push(`| ${formatMetricName$1(metric.name)} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
+        const description = getMetricDescription$1(metric.name, config.minimumStars);
+        lines.push(`| ${formatMetricName$1(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
     }
     lines.push('');
     // Recommendations (only if there are failed metrics)
@@ -34570,22 +35275,84 @@ function formatThreshold(metric) {
  * Format metric name for display with documentation link
  */
 function formatMetricName$1(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
     const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
-        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
-        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
-        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
-        accountAge: { display: 'Account Age', anchor: 'account-age' },
-        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
-        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
+        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md', description: 'PRs merged vs closed' },
+        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md', description: 'Contributions to starred repos' },
+        positiveReactions: {
+            display: 'Positive Reactions',
+            file: 'positive-reactions.md',
+            description: 'Positive reactions received'
+        },
+        negativeReactions: {
+            display: 'Negative Reactions',
+            file: 'negative-reactions.md',
+            description: 'Negative reactions received'
+        },
+        accountAge: { display: 'Account Age', file: 'account-age.md', description: 'GitHub account age' },
+        activityConsistency: {
+            display: 'Activity Consistency',
+            file: 'activity-consistency.md',
+            description: 'Regular activity over time'
+        },
+        issueEngagement: {
+            display: 'Issue Engagement',
+            file: 'issue-engagement.md',
+            description: 'Issues with community engagement'
+        },
+        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md', description: 'Code reviews given to others' },
+        mergerDiversity: {
+            display: 'Merger Diversity',
+            file: 'merger-diversity.md',
+            description: 'Unique maintainers who merged PRs'
+        },
+        repoHistoryMergeRate: {
+            display: 'Repo History Merge Rate',
+            file: 'repo-history.md',
+            description: 'Merge rate in this repo'
+        },
+        repoHistoryMinPRs: {
+            display: 'Repo History Min PRs',
+            file: 'repo-history.md',
+            description: 'Previous PRs in this repo'
+        },
+        profileCompleteness: {
+            display: 'Profile Completeness',
+            file: 'profile-completeness.md',
+            description: 'Profile richness (bio, followers)'
+        },
+        suspiciousPatterns: {
+            display: 'Suspicious Patterns',
+            file: 'suspicious-patterns.md',
+            description: 'Spam-like activity detection'
+        }
     };
     const info = metricInfo[name];
     if (info) {
-        return `[${info.display}](${BASE_URL}${info.anchor})`;
+        return `[${info.display}](${BASE_URL}${info.file})`;
     }
     return name;
+}
+/**
+ * Get metric description for display
+ */
+function getMetricDescription$1(name, minimumStars) {
+    const descriptions = {
+        prMergeRate: 'PRs merged vs closed',
+        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
+        positiveReactions: 'Positive reactions received',
+        negativeReactions: 'Negative reactions received',
+        accountAge: 'GitHub account age',
+        activityConsistency: 'Regular activity over time',
+        issueEngagement: 'Issues with community engagement',
+        codeReviews: 'Code reviews given to others',
+        mergerDiversity: 'Unique maintainers who merged PRs',
+        repoHistoryMergeRate: 'Merge rate in this repo',
+        repoHistoryMinPRs: 'Previous PRs in this repo',
+        profileCompleteness: 'Profile richness (bio, followers)',
+        suspiciousPatterns: 'Spam-like activity detection'
+    };
+    return descriptions[name] || '';
 }
 
 /**
@@ -34691,7 +35458,7 @@ function logResultSummary(result) {
 /**
  * Write analysis result to GitHub Job Summary
  */
-async function writeJobSummary(result) {
+async function writeJobSummary(result, minimumStars = 100) {
     const statusEmoji = result.passed ? '✅' : '⚠️';
     const statusText = result.passed ? 'Passed' : 'Needs Review';
     summary
@@ -34705,15 +35472,17 @@ async function writeJobSummary(result) {
     if (result.hasLimitedData && !result.isNewAccount) {
         summary.addRaw(`> **Note:** Limited contribution data available. Results may be affected.\n\n`);
     }
-    summary.addHeading('Metric Results', 3).addTable([
+    summary.addTable([
         [
             { data: 'Metric', header: true },
+            { data: 'Description', header: true },
             { data: 'Value', header: true },
             { data: 'Threshold', header: true },
             { data: 'Status', header: true }
         ],
         ...result.metrics.map((m) => [
             formatMetricName(m.name),
+            getMetricDescription(m.name, minimumStars),
             formatValueForLog(m),
             formatThresholdForLog(m),
             m.passed ? '✅' : '❌'
@@ -34732,22 +35501,48 @@ async function writeJobSummary(result) {
  * Format metric name for display with documentation link
  */
 function formatMetricName(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/README.md#';
+    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
     const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
-        repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
-        positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
-        negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
-        accountAge: { display: 'Account Age', anchor: 'account-age' },
-        activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
-        issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
-        codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
+        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
+        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
+        positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
+        negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
+        accountAge: { display: 'Account Age', file: 'account-age.md' },
+        activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
+        issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
+        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
+        mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
+        repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
+        repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
+        profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
+        suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
     };
     const info = metricInfo[name];
     if (info) {
-        return `[${info.display}](${BASE_URL}${info.anchor})`;
+        return `[${info.display}](${BASE_URL}${info.file})`;
     }
     return name;
+}
+/**
+ * Get metric description for display
+ */
+function getMetricDescription(name, minimumStars) {
+    const descriptions = {
+        prMergeRate: 'PRs merged vs closed',
+        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
+        positiveReactions: 'Positive reactions received',
+        negativeReactions: 'Negative reactions received',
+        accountAge: 'GitHub account age',
+        activityConsistency: 'Regular activity over time',
+        issueEngagement: 'Issues with community engagement',
+        codeReviews: 'Code reviews given to others',
+        mergerDiversity: 'Unique maintainers who merged PRs',
+        repoHistoryMergeRate: 'Merge rate in this repo',
+        repoHistoryMinPRs: 'Previous PRs in this repo',
+        profileCompleteness: 'Profile richness (bio, followers)',
+        suspiciousPatterns: 'Spam-like activity detection'
+    };
+    return descriptions[name] || '';
 }
 /**
  * Write whitelisted user summary to GitHub Job Summary
@@ -34844,7 +35639,7 @@ async function run() {
         const contributorData = await client.fetchContributorData(username, sinceDate);
         // Evaluate contributor against thresholds
         info('Evaluating contributor metrics...');
-        const result = evaluateContributor(contributorData, config, sinceDate);
+        const result = evaluateContributor(contributorData, config, sinceDate, prContext);
         // Log results
         logResultSummary(result);
         // Write Job Summary

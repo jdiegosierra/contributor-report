@@ -19,3 +19,20 @@ export { extractIssueEngagementData, checkIssueEngagement } from './issue-engage
 
 // Code Reviews
 export { extractCodeReviewData, checkCodeReviews } from './code-review.js'
+
+// Merger Diversity
+export { extractMergerDiversityData, checkMergerDiversity } from './merger-diversity.js'
+
+// Repo History (repository-specific)
+export { extractRepoHistoryData, checkRepoHistoryMergeRate, checkRepoHistoryMinPRs } from './repo-history.js'
+
+// Profile Completeness
+export { extractProfileData, checkProfileCompleteness } from './profile-completeness.js'
+
+// Suspicious Patterns
+export {
+  extractSuspiciousPatterns,
+  checkSuspiciousPatterns,
+  hasCriticalSpamPatterns,
+  SPAM_DETECTION_THRESHOLDS
+} from './suspicious-patterns.js'
