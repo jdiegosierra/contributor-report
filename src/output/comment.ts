@@ -18,7 +18,7 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
 
   const lines: string[] = [
     COMMENT_MARKER,
-    `## ${statusEmoji} Contributor Quality Check`,
+    `## ${statusEmoji} Contributor Report`,
     '',
     `**User:** @${result.username}`,
     `**Status:** ${statusText} (${result.passedCount}/${result.totalMetrics} metrics passed)`,
@@ -68,7 +68,7 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
   // Footer
   lines.push('---')
   lines.push(
-    `<sub>Contributor Quality Check evaluates based on public GitHub activity. ` +
+    `<sub>Contributor Report evaluates based on public GitHub activity. ` +
       `Analysis period: ${result.dataWindowStart.toISOString().split('T')[0]} to ${result.dataWindowEnd.toISOString().split('T')[0]}</sub>`
   )
 
@@ -81,7 +81,7 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
 export function generatePassedComment(result: AnalysisResult): string {
   const lines: string[] = [
     COMMENT_MARKER,
-    '## ✅ Contributor Quality Check',
+    '## ✅ Contributor Report',
     '',
     `**User:** @${result.username}`,
     `**Status:** Passed (${result.passedCount}/${result.totalMetrics} metrics)`,
@@ -108,7 +108,7 @@ export function generatePassedComment(result: AnalysisResult): string {
 export function generateWhitelistComment(username: string): string {
   return [
     COMMENT_MARKER,
-    '## ✅ Contributor Quality Check',
+    '## ✅ Contributor Report',
     '',
     `**User:** @${username}`,
     `**Status:** Trusted contributor (whitelisted)`,
@@ -156,19 +156,26 @@ function formatThreshold(metric: MetricCheckResult): string {
 }
 
 /**
- * Format metric name for display
+ * Format metric name for display with documentation link
  */
 function formatMetricName(name: string): string {
-  const nameMap: Record<string, string> = {
-    prMergeRate: 'PR Merge Rate',
-    repoQuality: 'Repo Quality',
-    positiveReactions: 'Positive Reactions',
-    negativeReactions: 'Negative Reactions',
-    accountAge: 'Account Age',
-    activityConsistency: 'Activity Consistency',
-    issueEngagement: 'Issue Engagement',
-    codeReviews: 'Code Reviews'
+  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report#'
+
+  const metricInfo: Record<string, { display: string; anchor: string }> = {
+    prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
+    repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
+    positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
+    negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
+    accountAge: { display: 'Account Age', anchor: 'account-age' },
+    activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
+    issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
+    codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
   }
 
-  return nameMap[name] || name
+  const info = metricInfo[name]
+  if (info) {
+    return `[${info.display}](${BASE_URL}${info.anchor})`
+  }
+
+  return name
 }

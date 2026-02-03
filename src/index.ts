@@ -1,5 +1,5 @@
 /**
- * Entry point for the Contributor Quality GitHub Action
+ * Entry point for the Contributor Report GitHub Action
  */
 import { run } from './main.js'
 

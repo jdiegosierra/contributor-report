@@ -1,4 +1,4 @@
-name: Contributor Quality
+name: Contributor Report
 
 on:
   pull_request:
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Evaluate Contributor Quality
+      - name: Evaluate Contributor Report
         uses: ./
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

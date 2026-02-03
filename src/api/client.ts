@@ -239,6 +239,10 @@ export class GitHubClient {
         }
       }>(RATE_LIMIT_QUERY, {})
 
+      if (!result || !result.rateLimit) {
+        return null
+      }
+
       return parseRateLimit(result.rateLimit)
     } catch {
       return null
@@ -283,7 +287,7 @@ export class GitHubClient {
           comment_id: existingComment.id,
           body
         })
-        core.info('Updated existing quality check comment')
+        core.info('Updated existing report comment')
       } else {
         // Create new comment
         await this.octokit.rest.issues.createComment({
@@ -292,7 +296,7 @@ export class GitHubClient {
           issue_number: context.prNumber,
           body
         })
-        core.info('Created new quality check comment')
+        core.info('Created new report comment')
       }
     })
   }

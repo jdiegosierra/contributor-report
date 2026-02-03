@@ -39,7 +39,7 @@ The action posts a detailed comment on each PR with:
 Example report:
 
 ```markdown
-## ✅ Contributor Quality Check
+## ✅ Contributor Report
 
 **User:** @contributor **Status:** Passed (7/8 metrics passed)
 
@@ -116,6 +116,137 @@ metrics** so maintainers can make informed decisions. It's the difference betwee
 | Issue Engagement     | Issues created that receive engagement         | >= 0              |
 | Code Reviews         | Code reviews given to others                   | >= 0              |
 
+## Metric Details
+
+### PR Merge Rate
+
+**What it measures:** The percentage of pull requests that get successfully merged versus those that are closed without
+merging.
+
+**Why it matters:** A low merge rate may indicate low-quality contributions, PRs that don't follow project guidelines,
+or spam submissions. Contributors with consistently merged PRs demonstrate they understand project requirements and
+deliver valuable contributions.
+
+**How it's calculated:** (Merged PRs / Total PRs) × 100. Only PRs from the configured analysis window are considered.
+
+**How to improve:**
+
+- Review contribution guidelines before submitting PRs
+- Start with smaller, focused changes
+- Respond to review feedback promptly
+- Ensure tests pass before submitting
+
+### Account Age
+
+**What it measures:** How long the GitHub account has existed (in days).
+
+**Why it matters:** Very new accounts (< 30 days) submitting PRs may warrant additional scrutiny, as they're sometimes
+associated with spam campaigns or AI-generated contributions. However, everyone starts somewhere, so this metric should
+be used thoughtfully.
+
+**How it's calculated:** Days between account creation date and current date.
+
+**How to improve:** This metric improves naturally over time as your account ages.
+
+### Positive Reactions
+
+**What it measures:** The total number of positive reactions (👍, ❤️, 🎉, 🚀) received on your comments, issues, and PR
+reviews.
+
+**Why it matters:** Positive community engagement indicates that your contributions are helpful and well-received. This
+metric reflects how you interact with others in the community.
+
+**How it's calculated:** Sum of all positive reaction types across your comments, issues, and PR reviews.
+
+**How to improve:**
+
+- Provide helpful, constructive feedback in code reviews
+- Write clear, detailed issue reports
+- Share useful insights in discussions
+- Be respectful and supportive of other contributors
+
+### Negative Reactions
+
+**What it measures:** The total number of negative reactions (👎, 😕) received on your comments, issues, and PR reviews.
+
+**Why it matters:** A high number of negative reactions may indicate problematic behavior, unhelpful contributions, or
+communication issues. This is a maximum threshold - you should stay below it.
+
+**How it's calculated:** Sum of negative reaction types (👎, 😕) across your comments, issues, and PR reviews.
+
+**How to improve:**
+
+- Be respectful and constructive in all interactions
+- Avoid spam or low-effort comments
+- Focus on helpful, relevant contributions
+- Follow project codes of conduct
+
+### Repo Quality
+
+**What it measures:** The number of repositories (with a minimum star count) where you've had PRs successfully merged.
+
+**Why it matters:** Contributing to established, popular repositories demonstrates that you can meet higher quality
+standards and work with larger communities. It helps distinguish between genuine contributors and spam accounts.
+
+**How it's calculated:** Count of unique repositories (meeting the minimum stars threshold) where you have merged PRs.
+Default minimum is 100 stars, but this is configurable.
+
+**How to improve:**
+
+- Contribute to well-maintained open source projects
+- Focus on quality over quantity
+- Build a track record with established projects
+- Find projects that align with your interests and skills
+
+### Activity Consistency
+
+**What it measures:** How regularly you're active on GitHub over the analysis period.
+
+**Why it matters:** Consistent activity over time indicates a genuine contributor rather than a temporary or spam
+account. Real developers typically have ongoing GitHub activity, while spam accounts often show sudden bursts of
+activity.
+
+**How it's calculated:** Percentage of months (within the analysis window) where you had at least one contribution (PR,
+issue, or review).
+
+**How to improve:**
+
+- Contribute regularly to projects you care about
+- Maintain consistent involvement over time
+- Even small contributions help demonstrate consistency
+
+### Issue Engagement
+
+**What it measures:** The number of issues you've created that received community engagement (comments from others).
+
+**Why it matters:** Creating issues that spark discussion shows you're identifying real problems and communicating them
+effectively. Engaged issues indicate thoughtful contributions rather than spam.
+
+**How it's calculated:** Count of issues you've created that have at least one comment from another user.
+
+**How to improve:**
+
+- Create well-researched, detailed issue reports
+- Provide clear reproduction steps for bugs
+- Propose thoughtful feature requests with use cases
+- Engage constructively in issue discussions
+
+### Code Reviews
+
+**What it measures:** The number of meaningful code reviews you've provided on other people's pull requests.
+
+**Why it matters:** Providing code reviews demonstrates engagement with the community and technical understanding.
+Reviewers who help others improve their code are valuable contributors. Spam accounts rarely engage in code review.
+
+**How it's calculated:** Count of non-trivial review comments you've made on PRs (excluding your own PRs).
+
+**How to improve:**
+
+- Review PRs in projects you're familiar with
+- Provide constructive, helpful feedback
+- Look for opportunities to help other contributors
+- Share your knowledge and expertise
+
 ## Usage
 
 > **Note**: All metric thresholds default to `0`, making the action permissive by default. Configure stricter thresholds
@@ -124,7 +255,7 @@ metrics** so maintainers can make informed decisions. It's the difference betwee
 ### Basic Usage
 
 ```yaml
-name: PR Quality Check
+name: PR Contributor Check
 
 on:
   pull_request:
@@ -140,7 +271,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Contributor Quality
+      - name: Check Contributor Report
         uses: jdiegosierra/contributor-report@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -228,17 +359,18 @@ jobs:
 ## Using Outputs
 
 ```yaml
-- name: Check Contributor Quality
-  id: quality
+- name: Check Contributor Report
+  id: contributor-check
   uses: jdiegosierra/contributor-report@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 
 - name: Handle result
-  if: steps.quality.outputs.passed == 'false'
+  if: steps.contributor-check.outputs.passed == 'false'
   run: |
-    echo "Passed: ${{ steps.quality.outputs.passed }}"
-    echo "Metrics: ${{ steps.quality.outputs.passed-count }}/${{ steps.quality.outputs.total-metrics }}"
+    echo "Passed: ${{ steps.contributor-check.outputs.passed }}"
+    echo "Metrics: ${{ steps.contributor-check.outputs.passed-count }}/\
+${{ steps.contributor-check.outputs.total-metrics }}"
 ```
 
 ## Default Trusted Users

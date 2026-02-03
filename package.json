@@ -37,7 +37,7 @@
     "lint": "pnpm exec eslint .",
     "lint:md": "pnpm exec markdownlint '**/*.md' --ignore node_modules",
     "lint:all": "pnpm run lint && pnpm run lint:md && pnpm run format:check",
-    "local-action": "pnpm exec local-action . src/main.ts .env",
+    "local-action": "rm -f .github/step-summary.md && pnpm exec local-action . src/main.ts .env",
     "package": "pnpm exec rimraf ./dist && pnpm exec rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript",
     "package:watch": "pnpm run package -- --watch",
     "test": "NODE_OPTIONS=--experimental-vm-modules NODE_NO_WARNINGS=1 pnpm exec jest",

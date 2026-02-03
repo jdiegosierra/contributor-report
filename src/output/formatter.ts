@@ -76,7 +76,7 @@ export function setWhitelistOutputs(username: string): void {
 export function logResultSummary(result: AnalysisResult): void {
   core.info('')
   core.info('╔══════════════════════════════════════════════════╗')
-  core.info('║         CONTRIBUTOR QUALITY ANALYSIS             ║')
+  core.info('║         CONTRIBUTOR REPORT ANALYSIS              ║')
   core.info('╚══════════════════════════════════════════════════╝')
   core.info('')
   core.info(`  User:      @${result.username}`)
@@ -126,7 +126,7 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
   const statusText = result.passed ? 'Passed' : 'Needs Review'
 
   core.summary
-    .addHeading(`${statusEmoji} Contributor Quality Check`, 2)
+    .addHeading(`${statusEmoji} Contributor Report`, 2)
     .addRaw(
       `\n**User:** @${result.username}\n\n**Status:** ${statusText} (${result.passedCount}/${result.totalMetrics} metrics passed)\n\n`
     )
@@ -170,20 +170,28 @@ export async function writeJobSummary(result: AnalysisResult): Promise<void> {
 }
 
 /**
- * Format metric name for display
+ * Format metric name for display with documentation link
  */
 function formatMetricName(name: string): string {
-  const nameMap: Record<string, string> = {
-    prMergeRate: 'PR Merge Rate',
-    repoQuality: 'Repo Quality',
-    positiveReactions: 'Positive Reactions',
-    negativeReactions: 'Negative Reactions',
-    accountAge: 'Account Age',
-    activityConsistency: 'Activity Consistency',
-    issueEngagement: 'Issue Engagement',
-    codeReviews: 'Code Reviews'
+  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report#'
+
+  const metricInfo: Record<string, { display: string; anchor: string }> = {
+    prMergeRate: { display: 'PR Merge Rate', anchor: 'pr-merge-rate' },
+    repoQuality: { display: 'Repo Quality', anchor: 'repo-quality' },
+    positiveReactions: { display: 'Positive Reactions', anchor: 'positive-reactions' },
+    negativeReactions: { display: 'Negative Reactions', anchor: 'negative-reactions' },
+    accountAge: { display: 'Account Age', anchor: 'account-age' },
+    activityConsistency: { display: 'Activity Consistency', anchor: 'activity-consistency' },
+    issueEngagement: { display: 'Issue Engagement', anchor: 'issue-engagement' },
+    codeReviews: { display: 'Code Reviews', anchor: 'code-reviews' }
   }
-  return nameMap[name] || name
+
+  const info = metricInfo[name]
+  if (info) {
+    return `[${info.display}](${BASE_URL}${info.anchor})`
+  }
+
+  return name
 }
 
 /**
@@ -191,7 +199,7 @@ function formatMetricName(name: string): string {
  */
 export async function writeWhitelistSummary(username: string): Promise<void> {
   await core.summary
-    .addHeading('Contributor Quality Analysis', 2)
+    .addHeading('Contributor Report Analysis', 2)
     .addRaw(`✅ **@${username}** is a trusted contributor and was automatically approved.\n`)
     .write()
 }
