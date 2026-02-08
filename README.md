@@ -35,7 +35,7 @@ When a PR is opened, this action:
 ```markdown
 ## ✅ Contributor Report
 
-**User:** @contributor **Status:** Passed (7/8 metrics passed)
+**User:** @contributor **Status:** Passed (12/13 metrics passed)
 
 | Metric               | Description                      | Value | Threshold | Status |
 | -------------------- | -------------------------------- | ----- | --------- | ------ |
@@ -47,6 +47,10 @@ When a PR is opened, this action:
 | Activity Consistency | Regular activity over time       | 60%   | >= 50%    | ✅     |
 | Issue Engagement     | Issues with community engagement | 2     | >= 1      | ✅     |
 | Code Reviews         | Code reviews given to others     | 0     | >= 1      | ❌     |
+| Merger Diversity     | Unique maintainers who merged    | 4     | >= 2      | ✅     |
+| Repo History         | Track record in this repo        | 100%  | >= 0%     | ✅     |
+| Profile Completeness | GitHub profile richness          | 60    | >= 20     | ✅     |
+| Suspicious Patterns  | Spam-like activity detection     | None  | N/A       | ✅     |
 
 ### Recommendations
 
@@ -193,6 +197,9 @@ jobs:
     # Test mode - log but don't act
     dry-run: 'false'
 
+    # Show detailed evidence: none, failed, all
+    verbose-details: 'failed'
+
     # New account handling: neutral, require-review, block
     new-account-action: 'require-review'
 
@@ -223,6 +230,7 @@ jobs:
 | `on-fail`                           | No       | `comment`                | Action when check fails               |
 | `label-name`                        | No       | `needs-review`           | Label to apply                        |
 | `dry-run`                           | No       | `false`                  | Log only, no actions                  |
+| `verbose-details`                   | No       | `none`                   | Detail level: none, failed, all       |
 | `new-account-action`                | No       | `neutral`                | Handling for new accounts             |
 | `new-account-threshold-days`        | No       | `30`                     | Days to consider "new"                |
 

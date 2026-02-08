@@ -2,10 +2,26 @@
  * Metric data structures and interfaces
  */
 
+/** Valid metric name identifiers */
+export type MetricName =
+  | 'prMergeRate'
+  | 'repoQuality'
+  | 'positiveReactions'
+  | 'negativeReactions'
+  | 'accountAge'
+  | 'activityConsistency'
+  | 'issueEngagement'
+  | 'codeReviews'
+  | 'mergerDiversity'
+  | 'repoHistoryMergeRate'
+  | 'repoHistoryMinPRs'
+  | 'profileCompleteness'
+  | 'suspiciousPatterns'
+
 /** Result from checking a single metric against its threshold */
 export interface MetricCheckResult {
   /** Metric identifier */
-  name: string
+  name: MetricName
 
   /** Raw measured value */
   rawValue: number

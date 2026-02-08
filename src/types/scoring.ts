@@ -2,7 +2,7 @@
  * Analysis result types
  */
 
-import type { MetricCheckResult, AllMetricsData } from './metrics.js'
+import type { MetricCheckResult, MetricName, AllMetricsData } from './metrics.js'
 
 /** Complete analysis result */
 export interface AnalysisResult {
@@ -19,7 +19,7 @@ export interface AnalysisResult {
   metrics: MetricCheckResult[]
 
   /** Names of metrics that failed their checks */
-  failedMetrics: string[]
+  failedMetrics: MetricName[]
 
   /** Username analyzed */
   username: string
@@ -41,9 +41,6 @@ export interface AnalysisResult {
 
   /** Limited data available for analysis */
   hasLimitedData: boolean
-
-  /** User was on trusted list */
-  isTrustedUser: boolean
 
   /** User was whitelisted (trusted user or org member) */
   wasWhitelisted: boolean

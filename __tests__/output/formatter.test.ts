@@ -18,16 +18,17 @@ const {
 } = await import('../../src/output/formatter.js')
 
 import type { AnalysisResult } from '../../src/types/scoring.js'
-import type { MetricCheckResult } from '../../src/types/metrics.js'
+import type { MetricCheckResult, MetricName } from '../../src/types/metrics.js'
 import type { ContributorQualityConfig } from '../../src/types/config.js'
 
 describe('Output Formatter', () => {
-  const createMetric = (name: string, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
+  const createMetric = (name: MetricName, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
     name,
     rawValue,
     threshold,
     passed,
-    details: `Test metric ${name}`
+    details: `Test metric ${name}`,
+    dataPoints: 10
   })
 
   const baseConfig: ContributorQualityConfig = {
@@ -80,6 +81,7 @@ describe('Output Formatter', () => {
     isNewAccount: false,
     hasLimitedData: false,
     wasWhitelisted: false,
+    analyzedAt: new Date('2026-01-01'),
     dataWindowStart: new Date('2025-01-01'),
     dataWindowEnd: new Date('2026-01-01')
   }
@@ -209,8 +211,8 @@ describe('Output Formatter', () => {
       setWhitelistOutputs('trusteduser')
 
       expect(core.setOutput).toHaveBeenCalledWith('passed', true)
-      expect(core.setOutput).toHaveBeenCalledWith('passed-count', 8)
-      expect(core.setOutput).toHaveBeenCalledWith('total-metrics', 8)
+      expect(core.setOutput).toHaveBeenCalledWith('passed-count', 13)
+      expect(core.setOutput).toHaveBeenCalledWith('total-metrics', 13)
       expect(core.setOutput).toHaveBeenCalledWith('breakdown', expect.stringContaining('trusteduser'))
       expect(core.setOutput).toHaveBeenCalledWith('recommendations', '[]')
       expect(core.setOutput).toHaveBeenCalledWith('is-new-account', false)
