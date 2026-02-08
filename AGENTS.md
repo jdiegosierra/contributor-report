@@ -171,6 +171,22 @@ const { myFunction } = await import('../src/module.js')
 **8 outputs**: `passed`, `passed-count`, `total-metrics`, `breakdown` (JSON), `recommendations` (JSON),
 `is-new-account`, `has-limited-data`, `was-whitelisted`.
 
+### Releases
+
+Releases are automated via [Release Please](https://github.com/googleapis/release-please). On push to `main`:
+
+1. Release Please scans conventional commits and creates/updates a release PR with CHANGELOG and version bump
+2. When the release PR is merged, it creates a GitHub release + git tag (e.g., `v1.4.0`)
+3. The workflow updates the floating major tag (`v1` → latest release)
+
+**Only `feat:` and `fix:` commits trigger a release PR.** Other types (`docs:`, `ci:`, `refactor:`, etc.) are included
+in the next release but don't trigger one on their own.
+
+Configuration files:
+
+- `release-please-config.json` — Release type (`node`), changelog path, tag format
+- `.release-please-manifest.json` — Current version (updated automatically by Release Please)
+
 ## Repository Configuration
 
 ### Branch Protection (main)
