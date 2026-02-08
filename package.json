@@ -45,11 +45,11 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,ts,mjs}": [
+    "!(.agents/**).{js,ts,mjs}": [
       "eslint --fix",
       "prettier --write"
     ],
-    "*.md": [
+    "!(.agents/**).md": [
       "markdownlint --fix",
       "prettier --write"
     ],

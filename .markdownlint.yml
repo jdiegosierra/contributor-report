@@ -1,8 +1,9 @@
 # See: https://github.com/DavidAnson/markdownlint
 
-# Ignore auto-generated files
+# Ignore auto-generated and third-party files
 ignores:
   - CHANGELOG.md
+  - .agents/**
 
 # Unordered list style
 MD004:
