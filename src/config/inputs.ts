@@ -133,7 +133,16 @@ export function parseInputs(): ContributorQualityConfig {
   let customThresholds: Partial<MetricThresholds> = {}
 
   if (thresholdsJson) {
-    customThresholds = parseJSON<Partial<MetricThresholds>>(thresholdsJson, {})
+    const parsed = parseJSON<Partial<MetricThresholds>>(thresholdsJson, {})
+
+    // Validate that all threshold values are numbers
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value !== 'number') {
+        throw new Error(`Invalid threshold value for "${key}": expected a number, got ${typeof value}`)
+      }
+    }
+
+    customThresholds = parsed
   }
 
   // Individual threshold inputs override JSON

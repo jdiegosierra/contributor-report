@@ -28362,6 +28362,18 @@ function validateThresholds(thresholds) {
     if (thresholds.profileCompleteness < 0 || thresholds.profileCompleteness > 100) {
         throw new Error(`profileCompleteness threshold must be between 0 and 100, got ${thresholds.profileCompleteness}`);
     }
+    if (thresholds.repoQuality < 0) {
+        throw new Error(`repoQuality threshold must be non-negative, got ${thresholds.repoQuality}`);
+    }
+    if (thresholds.positiveReactions < 0) {
+        throw new Error(`positiveReactions threshold must be non-negative, got ${thresholds.positiveReactions}`);
+    }
+    if (thresholds.issueEngagement < 0) {
+        throw new Error(`issueEngagement threshold must be non-negative, got ${thresholds.issueEngagement}`);
+    }
+    if (thresholds.codeReviews < 0) {
+        throw new Error(`codeReviews threshold must be non-negative, got ${thresholds.codeReviews}`);
+    }
 }
 /** Merge custom thresholds with defaults */
 function mergeThresholds(custom) {
@@ -28388,8 +28400,16 @@ const VALID_METRIC_NAMES = [
 ];
 /** Validate required metrics list */
 function validateRequiredMetrics(metrics) {
-    const valid = metrics.filter((m) => VALID_METRIC_NAMES.includes(m));
-    const invalid = metrics.filter((m) => !VALID_METRIC_NAMES.includes(m));
+    const valid = [];
+    const invalid = [];
+    for (const m of metrics) {
+        if (VALID_METRIC_NAMES.includes(m)) {
+            valid.push(m);
+        }
+        else {
+            invalid.push(m);
+        }
+    }
     if (invalid.length > 0) {
         throw new Error(`Invalid metric names in required-metrics: ${invalid.join(', ')}`);
     }
@@ -28505,7 +28525,14 @@ function parseInputs() {
     const thresholdsJson = getInput('thresholds');
     let customThresholds = {};
     if (thresholdsJson) {
-        customThresholds = parseJSON(thresholdsJson, {});
+        const parsed = parseJSON(thresholdsJson, {});
+        // Validate that all threshold values are numbers
+        for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value !== 'number') {
+                throw new Error(`Invalid threshold value for "${key}": expected a number, got ${typeof value}`);
+            }
+        }
+        customThresholds = parsed;
     }
     // Individual threshold inputs override JSON
     const prMergeRateInput = getInput('threshold-pr-merge-rate');
@@ -33520,16 +33547,23 @@ function isTransientError(error) {
             message.includes('fetch failed')) {
             return true;
         }
-        // Server errors (5xx)
-        if (message.includes('500') ||
-            message.includes('502') ||
-            message.includes('503') ||
-            message.includes('504') ||
+        // Server errors (5xx) - use word boundaries to avoid false positives
+        if (/\b500\b/.test(message) ||
+            /\b502\b/.test(message) ||
+            /\b503\b/.test(message) ||
+            /\b504\b/.test(message) ||
             message.includes('internal server error') ||
             message.includes('bad gateway') ||
             message.includes('service unavailable') ||
             message.includes('gateway timeout')) {
             return true;
+        }
+        // Check error status code directly if available
+        if ('status' in error && typeof error.status === 'number') {
+            const status = error.status;
+            if (status >= 500 && status < 600) {
+                return true;
+            }
         }
     }
     return false;
@@ -33756,22 +33790,10 @@ class GitHubClient {
             }
             return parseRateLimit(result.rateLimit);
         }
-        catch {
+        catch (error) {
+            debug(`Failed to check rate limit: ${error instanceof Error ? error.message : 'Unknown error'}`);
             return null;
         }
-    }
-    /**
-     * Add a comment to a pull request
-     */
-    async addPRComment(context, body) {
-        await executeWithRetry(async () => {
-            await this.octokit.rest.issues.createComment({
-                owner: context.owner,
-                repo: context.repo,
-                issue_number: context.prNumber,
-                body
-            });
-        });
     }
     /**
      * Update existing comment or create a new one
@@ -33783,7 +33805,8 @@ class GitHubClient {
             const { data: comments } = await this.octokit.rest.issues.listComments({
                 owner: context.owner,
                 repo: context.repo,
-                issue_number: context.prNumber
+                issue_number: context.prNumber,
+                per_page: 100
             });
             // Find existing comment with marker
             const existingComment = comments.find((comment) => comment.body?.includes(marker));
@@ -33820,16 +33843,21 @@ class GitHubClient {
                 name: label
             });
         }
-        catch {
-            // Label doesn't exist, create it
-            debug(`Creating label: ${label}`);
-            await this.octokit.rest.issues.createLabel({
-                owner: context.owner,
-                repo: context.repo,
-                name: label,
-                color: 'FFA500', // Orange
-                description: 'PR requires additional review due to contributor score'
-            });
+        catch (error) {
+            // Only create if the label was not found (404)
+            if (error instanceof Error && 'status' in error && error.status === 404) {
+                debug(`Creating label: ${label}`);
+                await this.octokit.rest.issues.createLabel({
+                    owner: context.owner,
+                    repo: context.repo,
+                    name: label,
+                    color: 'FFA500', // Orange
+                    description: 'PR requires additional review due to contributor score'
+                });
+            }
+            else {
+                throw error;
+            }
         }
     }
     /**
@@ -35176,10 +35204,114 @@ function evaluateContributor(data, config, sinceDate, prContext) {
         recommendations,
         isNewAccount: accountIsNew,
         hasLimitedData,
-        isTrustedUser: false,
         wasWhitelisted: false,
         metricsData
     };
+}
+
+/**
+ * Shared output formatting utilities used by both comment.ts and formatter.ts
+ */
+/** Base URL for metric documentation links */
+const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
+/** Metric display info for name formatting and documentation links */
+const METRIC_INFO = {
+    prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
+    repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
+    positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
+    negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
+    accountAge: { display: 'Account Age', file: 'account-age.md' },
+    activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
+    issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
+    codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
+    mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
+    repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
+    repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
+    profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
+    suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
+};
+/**
+ * Format metric name for display with documentation link
+ */
+function formatMetricName(name) {
+    const info = METRIC_INFO[name];
+    if (info) {
+        return `[${info.display}](${BASE_URL}${info.file})`;
+    }
+    return name;
+}
+/**
+ * Get metric description for display
+ */
+function getMetricDescription(name, minimumStars) {
+    const descriptions = {
+        prMergeRate: 'PRs merged vs closed',
+        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
+        positiveReactions: 'Positive reactions received',
+        negativeReactions: 'Negative reactions received',
+        accountAge: 'GitHub account age',
+        activityConsistency: 'Regular activity over time',
+        issueEngagement: 'Issues with community engagement',
+        codeReviews: 'Code reviews given to others',
+        mergerDiversity: 'Unique maintainers who merged PRs',
+        repoHistoryMergeRate: 'Merge rate in this repo',
+        repoHistoryMinPRs: 'Previous PRs in this repo',
+        profileCompleteness: 'Profile richness (bio, followers)',
+        suspiciousPatterns: 'Spam-like activity detection'
+    };
+    return descriptions[name];
+}
+/**
+ * Format metric value for display
+ */
+function formatMetricValue(metric) {
+    switch (metric.name) {
+        case 'prMergeRate':
+        case 'activityConsistency':
+        case 'repoHistoryMergeRate':
+            return `${(metric.rawValue * 100).toFixed(0)}%`;
+        case 'accountAge':
+            return `${metric.rawValue} days`;
+        default:
+            return `${metric.rawValue}`;
+    }
+}
+/**
+ * Format threshold for display
+ */
+function formatThreshold(metric) {
+    // Suspicious patterns has no configurable threshold
+    if (metric.name === 'suspiciousPatterns') {
+        return 'N/A';
+    }
+    // For negative reactions, it's a maximum (<=)
+    if (metric.name === 'negativeReactions') {
+        return `<= ${metric.threshold}`;
+    }
+    // For percentages
+    if (metric.name === 'prMergeRate' ||
+        metric.name === 'activityConsistency' ||
+        metric.name === 'repoHistoryMergeRate') {
+        return `>= ${(metric.threshold * 100).toFixed(0)}%`;
+    }
+    // For account age
+    if (metric.name === 'accountAge') {
+        return `>= ${metric.threshold} days`;
+    }
+    // Default (>=)
+    return `>= ${metric.threshold}`;
+}
+/**
+ * Check if verbose details should be shown for a metric
+ */
+function shouldShowVerboseDetails(verboseLevel, metricPassed) {
+    if (verboseLevel === 'none')
+        return false;
+    if (verboseLevel === 'all')
+        return true;
+    if (verboseLevel === 'failed')
+        return !metricPassed;
+    return false;
 }
 
 /**
@@ -35219,8 +35351,8 @@ function generateAnalysisComment(result, config) {
         const statusIcon = metric.passed ? '✅' : '❌';
         const formattedValue = formatMetricValue(metric);
         const formattedThreshold = formatThreshold(metric);
-        const description = getMetricDescription$1(metric.name, config.minimumStars);
-        lines.push(`| ${formatMetricName$1(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
+        const description = getMetricDescription(metric.name, config.minimumStars);
+        lines.push(`| ${formatMetricName(metric.name)} | ${description} | ${formattedValue} | ${formattedThreshold} | ${statusIcon} |`);
     }
     lines.push('');
     // Add verbose details after the table (if enabled)
@@ -35232,7 +35364,7 @@ function generateAnalysisComment(result, config) {
             // Track which detail groups have been shown to avoid duplicates
             const shownGroups = new Set();
             for (const metric of verboseMetrics) {
-                const group = getMetricDetailGroup(metric.name);
+                const group = getMetricDetailGroup$1(metric.name);
                 if (!shownGroups.has(group)) {
                     shownGroups.add(group);
                     lines.push(formatVerboseDetails(metric.name, result.metricsData));
@@ -35271,129 +35403,9 @@ function generateWhitelistComment(username) {
     ].join('\n');
 }
 /**
- * Format metric value for display
- */
-function formatMetricValue(metric) {
-    switch (metric.name) {
-        case 'prMergeRate':
-        case 'activityConsistency':
-            return `${(metric.rawValue * 100).toFixed(0)}%`;
-        case 'accountAge':
-            return `${metric.rawValue} days`;
-        default:
-            return `${metric.rawValue}`;
-    }
-}
-/**
- * Format threshold for display
- */
-function formatThreshold(metric) {
-    // Suspicious patterns has no configurable threshold
-    if (metric.name === 'suspiciousPatterns') {
-        return 'N/A';
-    }
-    // For negative reactions, it's a maximum (<=)
-    if (metric.name === 'negativeReactions') {
-        return `<= ${metric.threshold}`;
-    }
-    // For percentages
-    if (metric.name === 'prMergeRate' || metric.name === 'activityConsistency') {
-        return `>= ${(metric.threshold * 100).toFixed(0)}%`;
-    }
-    // For account age
-    if (metric.name === 'accountAge') {
-        return `>= ${metric.threshold} days`;
-    }
-    // Default (>=)
-    return `>= ${metric.threshold}`;
-}
-/**
- * Format metric name for display with documentation link
- */
-function formatMetricName$1(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
-    const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md', description: 'PRs merged vs closed' },
-        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md', description: 'Contributions to starred repos' },
-        positiveReactions: {
-            display: 'Positive Reactions',
-            file: 'positive-reactions.md',
-            description: 'Positive reactions received'
-        },
-        negativeReactions: {
-            display: 'Negative Reactions',
-            file: 'negative-reactions.md',
-            description: 'Negative reactions received'
-        },
-        accountAge: { display: 'Account Age', file: 'account-age.md', description: 'GitHub account age' },
-        activityConsistency: {
-            display: 'Activity Consistency',
-            file: 'activity-consistency.md',
-            description: 'Regular activity over time'
-        },
-        issueEngagement: {
-            display: 'Issue Engagement',
-            file: 'issue-engagement.md',
-            description: 'Issues with community engagement'
-        },
-        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md', description: 'Code reviews given to others' },
-        mergerDiversity: {
-            display: 'Merger Diversity',
-            file: 'merger-diversity.md',
-            description: 'Unique maintainers who merged PRs'
-        },
-        repoHistoryMergeRate: {
-            display: 'Repo History Merge Rate',
-            file: 'repo-history.md',
-            description: 'Merge rate in this repo'
-        },
-        repoHistoryMinPRs: {
-            display: 'Repo History Min PRs',
-            file: 'repo-history.md',
-            description: 'Previous PRs in this repo'
-        },
-        profileCompleteness: {
-            display: 'Profile Completeness',
-            file: 'profile-completeness.md',
-            description: 'Profile richness (bio, followers)'
-        },
-        suspiciousPatterns: {
-            display: 'Suspicious Patterns',
-            file: 'suspicious-patterns.md',
-            description: 'Spam-like activity detection'
-        }
-    };
-    const info = metricInfo[name];
-    if (info) {
-        return `[${info.display}](${BASE_URL}${info.file})`;
-    }
-    return name;
-}
-/**
- * Get metric description for display
- */
-function getMetricDescription$1(name, minimumStars) {
-    const descriptions = {
-        prMergeRate: 'PRs merged vs closed',
-        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
-        positiveReactions: 'Positive reactions received',
-        negativeReactions: 'Negative reactions received',
-        accountAge: 'GitHub account age',
-        activityConsistency: 'Regular activity over time',
-        issueEngagement: 'Issues with community engagement',
-        codeReviews: 'Code reviews given to others',
-        mergerDiversity: 'Unique maintainers who merged PRs',
-        repoHistoryMergeRate: 'Merge rate in this repo',
-        repoHistoryMinPRs: 'Previous PRs in this repo',
-        profileCompleteness: 'Profile richness (bio, followers)',
-        suspiciousPatterns: 'Spam-like activity detection'
-    };
-    return descriptions[name] || '';
-}
-/**
  * Get the detail group for a metric (to avoid duplicate details)
  */
-function getMetricDetailGroup(metricName) {
+function getMetricDetailGroup$1(metricName) {
     const groups = {
         positiveReactions: 'reactions',
         negativeReactions: 'reactions',
@@ -35402,19 +35414,7 @@ function getMetricDetailGroup(metricName) {
         repoHistoryMergeRate: 'repoHistory',
         repoHistoryMinPRs: 'repoHistory'
     };
-    return groups[metricName] || metricName;
-}
-/**
- * Check if verbose details should be shown for a metric
- */
-function shouldShowVerboseDetails(verboseLevel, metricPassed) {
-    if (verboseLevel === 'none')
-        return false;
-    if (verboseLevel === 'all')
-        return true;
-    if (verboseLevel === 'failed')
-        return !metricPassed;
-    return false;
+    return groups[metricName] ?? metricName;
 }
 /**
  * Format verbose details for a specific metric
@@ -35685,11 +35685,23 @@ function formatProfileCompletenessDetails(metricsData) {
         '| Component | Status | Points |',
         '|-----------|--------|--------|'
     ];
-    // Followers (up to 40 points)
-    const followerPoints = Math.min(data.followersCount, 40);
+    // Followers (up to 40 points: 20 base + 10 at >=10 + 10 at >=50)
+    let followerPoints = 0;
+    if (data.followersCount > 0) {
+        followerPoints = 20;
+        if (data.followersCount >= 10)
+            followerPoints += 10;
+        if (data.followersCount >= 50)
+            followerPoints += 10;
+    }
     lines.push(`| Followers | ${data.followersCount} | +${followerPoints}/40 |`);
-    // Public repos (up to 20 points)
-    const repoPoints = Math.min(data.publicReposCount, 20);
+    // Public repos (up to 20 points: 15 base + 5 at >=5)
+    let repoPoints = 0;
+    if (data.publicReposCount > 0) {
+        repoPoints = 15;
+        if (data.publicReposCount >= 5)
+            repoPoints += 5;
+    }
     lines.push(`| Public repos | ${data.publicReposCount} | +${repoPoints}/20 |`);
     // Bio (20 points)
     lines.push(`| Bio | ${data.hasBio ? '✅' : '❌'} | +${data.hasBio ? 20 : 0}/20 |`);
@@ -35794,8 +35806,8 @@ function setActionOutputs(result) {
  */
 function setWhitelistOutputs(username) {
     setOutput('passed', true);
-    setOutput('passed-count', 8);
-    setOutput('total-metrics', 8);
+    setOutput('passed-count', VALID_METRIC_NAMES.length);
+    setOutput('total-metrics', VALID_METRIC_NAMES.length);
     setOutput('breakdown', JSON.stringify({ whitelisted: true, username }));
     setOutput('recommendations', JSON.stringify([]));
     setOutput('is-new-account', false);
@@ -35820,8 +35832,8 @@ function logResultSummary(result) {
     info('├──────────────────────────────────────────────────────────────────┤');
     for (const metric of result.metrics) {
         const name = metric.name.padEnd(20);
-        const value = formatValueForLog(metric).padEnd(14);
-        const threshold = formatThresholdForLog(metric).padEnd(14);
+        const value = formatMetricValue(metric).padEnd(14);
+        const threshold = formatThreshold(metric).padEnd(14);
         const status = metric.passed ? '✓ Pass ' : '✗ Fail ';
         info(`│ ${name} │ ${value} │ ${threshold} │ ${status} │`);
     }
@@ -35867,20 +35879,26 @@ async function writeJobSummary(result, config) {
         ...result.metrics.map((m) => [
             formatMetricName(m.name),
             getMetricDescription(m.name, config.minimumStars),
-            formatValueForLog(m),
-            formatThresholdForLog(m),
+            formatMetricValue(m),
+            formatThreshold(m),
             m.passed ? '✅' : '❌'
         ])
     ]);
     // Add verbose details if enabled
     if (result.metricsData && config.verboseDetails !== 'none') {
-        const metricsToShow = result.metrics.filter((m) => shouldShowVerboseDetailsForSummary(config.verboseDetails, m.passed));
+        const metricsToShow = result.metrics.filter((m) => shouldShowVerboseDetails(config.verboseDetails, m.passed));
         if (metricsToShow.length > 0) {
             summary.addHeading('Metric Details', 3);
+            // Track shown groups to avoid duplicate details for paired metrics
+            const shownGroups = new Set();
             for (const metric of metricsToShow) {
-                const details = formatVerboseDetailsForSummary(metric.name, result.metricsData);
-                if (details) {
-                    summary.addRaw(details);
+                const group = getMetricDetailGroup(metric.name);
+                if (!shownGroups.has(group)) {
+                    shownGroups.add(group);
+                    const details = formatVerboseDetailsForSummary(metric.name, result.metricsData);
+                    if (details) {
+                        summary.addRaw(details);
+                    }
                 }
             }
         }
@@ -35893,18 +35911,6 @@ async function writeJobSummary(result, config) {
         .addRaw(`\n---\n`)
         .addRaw(`<sub>Analysis period: ${result.dataWindowStart.toISOString().split('T')[0]} to ${result.dataWindowEnd.toISOString().split('T')[0]}</sub>\n`)
         .write();
-}
-/**
- * Check if verbose details should be shown for a metric in job summary
- */
-function shouldShowVerboseDetailsForSummary(verboseLevel, metricPassed) {
-    if (verboseLevel === 'none')
-        return false;
-    if (verboseLevel === 'all')
-        return true;
-    if (verboseLevel === 'failed')
-        return !metricPassed;
-    return false;
 }
 /**
  * Format verbose details for job summary (markdown format without HTML details tags)
@@ -35963,51 +35969,18 @@ function formatVerboseDetailsForSummary(metricName, metricsData) {
     }
 }
 /**
- * Format metric name for display with documentation link
+ * Get the detail group for a metric (to avoid duplicate details for paired metrics)
  */
-function formatMetricName(name) {
-    const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/';
-    const metricInfo = {
-        prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
-        repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
-        positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
-        negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
-        accountAge: { display: 'Account Age', file: 'account-age.md' },
-        activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
-        issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
-        codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
-        mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
-        repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
-        repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
-        profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
-        suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
+function getMetricDetailGroup(metricName) {
+    const groups = {
+        positiveReactions: 'reactions',
+        negativeReactions: 'reactions',
+        accountAge: 'account',
+        activityConsistency: 'account',
+        repoHistoryMergeRate: 'repoHistory',
+        repoHistoryMinPRs: 'repoHistory'
     };
-    const info = metricInfo[name];
-    if (info) {
-        return `[${info.display}](${BASE_URL}${info.file})`;
-    }
-    return name;
-}
-/**
- * Get metric description for display
- */
-function getMetricDescription(name, minimumStars) {
-    const descriptions = {
-        prMergeRate: 'PRs merged vs closed',
-        repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
-        positiveReactions: 'Positive reactions received',
-        negativeReactions: 'Negative reactions received',
-        accountAge: 'GitHub account age',
-        activityConsistency: 'Regular activity over time',
-        issueEngagement: 'Issues with community engagement',
-        codeReviews: 'Code reviews given to others',
-        mergerDiversity: 'Unique maintainers who merged PRs',
-        repoHistoryMergeRate: 'Merge rate in this repo',
-        repoHistoryMinPRs: 'Previous PRs in this repo',
-        profileCompleteness: 'Profile richness (bio, followers)',
-        suspiciousPatterns: 'Spam-like activity detection'
-    };
-    return descriptions[name] || '';
+    return groups[metricName] ?? metricName;
 }
 /**
  * Write whitelisted user summary to GitHub Job Summary
@@ -36017,38 +35990,6 @@ async function writeWhitelistSummary(username) {
         .addHeading('Contributor Report Analysis', 2)
         .addRaw(`✅ **@${username}** is a trusted contributor and was automatically approved.\n`)
         .write();
-}
-/**
- * Format metric value for log display
- */
-function formatValueForLog(metric) {
-    switch (metric.name) {
-        case 'prMergeRate':
-        case 'activityConsistency':
-            return `${(metric.rawValue * 100).toFixed(0)}%`;
-        case 'accountAge':
-            return `${metric.rawValue} days`;
-        default:
-            return `${metric.rawValue}`;
-    }
-}
-/**
- * Format threshold for log display
- */
-function formatThresholdForLog(metric) {
-    if (metric.name === 'suspiciousPatterns') {
-        return 'N/A';
-    }
-    if (metric.name === 'negativeReactions') {
-        return `<= ${metric.threshold}`;
-    }
-    if (metric.name === 'prMergeRate' || metric.name === 'activityConsistency') {
-        return `>= ${(metric.threshold * 100).toFixed(0)}%`;
-    }
-    if (metric.name === 'accountAge') {
-        return `>= ${metric.threshold} days`;
-    }
-    return `>= ${metric.threshold}`;
 }
 
 /**
@@ -36071,16 +36012,10 @@ async function run() {
         info(`Analyzing contributor: ${username}`);
         // Initialize GitHub client
         const client = new GitHubClient(config.githubToken);
-        // Check if user is in whitelist
-        if (config.trustedUsers.includes(username)) {
+        // Check if user is in whitelist (case-insensitive, matching GitHub behavior)
+        if (config.trustedUsers.some((u) => u.toLowerCase() === username.toLowerCase())) {
             info(`User ${username} is in trusted users list, skipping analysis`);
-            setWhitelistOutputs(username);
-            await writeWhitelistSummary(username);
-            // Always comment (upsert)
-            if (!config.dryRun) {
-                const comment = generateWhitelistComment(username);
-                await client.upsertPRComment(prContext, comment, COMMENT_MARKER);
-            }
+            await handleWhitelistedUser(username, config.dryRun, client, prContext);
             return;
         }
         // Check organization membership
@@ -36088,20 +36023,16 @@ async function run() {
             const isMember = await client.checkOrgMembership(username, config.trustedOrgs);
             if (isMember) {
                 info(`User ${username} is member of a trusted organization, skipping analysis`);
-                setWhitelistOutputs(username);
-                await writeWhitelistSummary(username);
-                // Always comment (upsert)
-                if (!config.dryRun) {
-                    const comment = generateWhitelistComment(username);
-                    await client.upsertPRComment(prContext, comment, COMMENT_MARKER);
-                }
+                await handleWhitelistedUser(username, config.dryRun, client, prContext);
                 return;
             }
         }
         // Calculate analysis window
+        // Clamp day to avoid month overflow (e.g., March 31 - 1 month should be Feb 28, not March 3)
         const now = new Date();
-        const sinceDate = new Date(now);
-        sinceDate.setMonth(sinceDate.getMonth() - config.analysisWindowMonths);
+        const targetMonth = now.getUTCMonth() - config.analysisWindowMonths;
+        const lastDayOfTargetMonth = new Date(Date.UTC(now.getUTCFullYear(), targetMonth + 1, 0)).getUTCDate();
+        const sinceDate = new Date(Date.UTC(now.getUTCFullYear(), targetMonth, Math.min(now.getUTCDate(), lastDayOfTargetMonth)));
         // Fetch contributor data
         info(`Analysis window: ${config.analysisWindowMonths} months (${sinceDate.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]})`);
         const contributorData = await client.fetchContributorData(username, sinceDate);
@@ -36143,6 +36074,17 @@ async function run() {
     }
 }
 /**
+ * Handle whitelisted user (trusted user or org member)
+ */
+async function handleWhitelistedUser(username, dryRun, client, prContext) {
+    setWhitelistOutputs(username);
+    await writeWhitelistSummary(username);
+    if (!dryRun) {
+        const comment = generateWhitelistComment(username);
+        await client.upsertPRComment(prContext, comment, COMMENT_MARKER);
+    }
+}
+/**
  * Handle new account based on configuration
  */
 async function handleNewAccount(result, config, client, prContext) {
@@ -36172,22 +36114,14 @@ async function handleFailedCheck(result, config, client, prContext) {
             // Comment already handled above (always comment)
             break;
         case 'label':
+        case 'comment-and-label':
+            // Comment already handled above (for comment-and-label)
             if (!config.dryRun) {
                 await client.addPRLabel(prContext, config.labelName);
                 info(`Added label "${config.labelName}"`);
             }
             else {
                 info(`[DRY RUN] Would add label "${config.labelName}"`);
-            }
-            break;
-        case 'comment-and-label':
-            // Comment already handled above
-            if (!config.dryRun) {
-                await client.addPRLabel(prContext, config.labelName);
-                info(`Added label "${config.labelName}"`);
-            }
-            else {
-                info(`[DRY RUN] Would add label`);
             }
             break;
         case 'fail':

@@ -2,15 +2,10 @@
  * Tests for PR comment generation
  */
 
-import {
-  generateAnalysisComment,
-  generatePassedComment,
-  generateWhitelistComment,
-  COMMENT_MARKER
-} from '../../src/output/comment.js'
+import { generateAnalysisComment, generateWhitelistComment, COMMENT_MARKER } from '../../src/output/comment.js'
 import type { AnalysisResult } from '../../src/types/scoring.js'
 import type { ContributorQualityConfig } from '../../src/types/config.js'
-import type { MetricCheckResult } from '../../src/types/metrics.js'
+import type { MetricCheckResult, MetricName } from '../../src/types/metrics.js'
 
 describe('Comment Generation', () => {
   const baseConfig: ContributorQualityConfig = {
@@ -43,7 +38,7 @@ describe('Comment Generation', () => {
     verboseDetails: 'none'
   }
 
-  const createMetric = (name: string, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
+  const createMetric = (name: MetricName, rawValue: number, threshold: number, passed: boolean): MetricCheckResult => ({
     name,
     rawValue,
     threshold,
@@ -71,7 +66,6 @@ describe('Comment Generation', () => {
     recommendations: [],
     isNewAccount: false,
     hasLimitedData: false,
-    isTrustedUser: false,
     wasWhitelisted: false,
     analyzedAt: new Date('2026-01-01'),
     dataWindowStart: new Date('2025-01-01'),
@@ -236,46 +230,6 @@ describe('Comment Generation', () => {
       expect(comment).toContain('| 10 |')
       expect(comment).toContain('| [Code Reviews]')
       expect(comment).toContain('| 15 |')
-    })
-  })
-
-  describe('generatePassedComment', () => {
-    it('generates compact passed comment', () => {
-      const comment = generatePassedComment(baseResult, baseConfig)
-
-      expect(comment).toContain(COMMENT_MARKER)
-      expect(comment).toContain('## ✅ Contributor Report')
-      expect(comment).toContain('**User:** @testuser')
-      expect(comment).toContain('**Status:** Passed (8/8 metrics)')
-      expect(comment).toContain('<details>')
-      expect(comment).toContain('<summary>View metric details</summary>')
-      expect(comment).toContain('</details>')
-      expect(comment).toContain('[PR Merge Rate]')
-    })
-
-    it('includes all metrics in details section', () => {
-      const comment = generatePassedComment(baseResult, baseConfig)
-
-      expect(comment).toContain('[PR Merge Rate]')
-      expect(comment).toContain('[Repo Quality]')
-      expect(comment).toContain('[Positive Reactions]')
-      expect(comment).toContain('[Account Age]')
-      expect(comment).toContain('[Activity Consistency]')
-      expect(comment).toContain('[Issue Engagement]')
-      expect(comment).toContain('[Code Reviews]')
-    })
-
-    it('shows correct status icons', () => {
-      const mixedResult: AnalysisResult = {
-        ...baseResult,
-        passedCount: 7,
-        metrics: [createMetric('prMergeRate', 0.8, 0.5, true), createMetric('codeReviews', 0, 2, false)]
-      }
-
-      const comment = generatePassedComment(mixedResult, baseConfig)
-
-      expect(comment).toContain('✅')
-      expect(comment).toContain('❌')
     })
   })
 

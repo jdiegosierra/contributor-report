@@ -2,7 +2,7 @@
  * Output module exports
  */
 
-export { generateAnalysisComment, generatePassedComment, generateWhitelistComment, COMMENT_MARKER } from './comment.js'
+export { generateAnalysisComment, generateWhitelistComment, COMMENT_MARKER } from './comment.js'
 
 export {
   formatActionOutput,
@@ -12,3 +12,11 @@ export {
   writeJobSummary,
   writeWhitelistSummary
 } from './formatter.js'
+
+export {
+  formatMetricName,
+  getMetricDescription,
+  formatMetricValue,
+  formatThreshold,
+  shouldShowVerboseDetails
+} from './shared.js'

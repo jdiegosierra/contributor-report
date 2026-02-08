@@ -113,18 +113,26 @@ export function isTransientError(error: unknown): boolean {
       return true
     }
 
-    // Server errors (5xx)
+    // Server errors (5xx) - use word boundaries to avoid false positives
     if (
-      message.includes('500') ||
-      message.includes('502') ||
-      message.includes('503') ||
-      message.includes('504') ||
+      /\b500\b/.test(message) ||
+      /\b502\b/.test(message) ||
+      /\b503\b/.test(message) ||
+      /\b504\b/.test(message) ||
       message.includes('internal server error') ||
       message.includes('bad gateway') ||
       message.includes('service unavailable') ||
       message.includes('gateway timeout')
     ) {
       return true
+    }
+
+    // Check error status code directly if available
+    if ('status' in error && typeof (error as { status: unknown }).status === 'number') {
+      const status = (error as { status: number }).status
+      if (status >= 500 && status < 600) {
+        return true
+      }
     }
   }
 
