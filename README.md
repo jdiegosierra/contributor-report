@@ -7,6 +7,10 @@
 [![Coverage](./badges/coverage.svg)](./badges/coverage.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> **📝 Example PR Active**: This repository has a live
+> [example Pull Request (#5)](https://github.com/jdiegosierra/contributor-report/pull/5) demonstrating the
+> contributor-report action in action. Check it out to see a real analysis report!
+
 A GitHub Action that analyzes PR contributors and generates detailed quality reports using objective GitHub metrics to
 help combat AI-generated spam PRs (AI slop) in open source projects.
 
