@@ -19,22 +19,20 @@ jobs:
 
       - name: Checkout PR
         if: steps.metadata.outputs.dependency-type == 'direct:production'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         if: steps.metadata.outputs.dependency-type == 'direct:production'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node.js
         if: steps.metadata.outputs.dependency-type == 'direct:production'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies

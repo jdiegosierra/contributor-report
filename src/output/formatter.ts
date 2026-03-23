@@ -4,8 +4,16 @@
 
 import * as core from '@actions/core'
 import type { AnalysisResult, ActionOutput } from '../types/scoring.js'
-import type { ContributorQualityConfig, VerboseDetailsLevel } from '../types/config.js'
-import type { AllMetricsData } from '../types/metrics.js'
+import type { ContributorQualityConfig } from '../types/config.js'
+import type { AllMetricsData, MetricName } from '../types/metrics.js'
+import { VALID_METRIC_NAMES } from '../config/defaults.js'
+import {
+  formatMetricName,
+  getMetricDescription,
+  formatMetricValue,
+  formatThreshold,
+  shouldShowVerboseDetails
+} from './shared.js'
 
 /**
  * Format analysis result for action outputs
@@ -63,8 +71,8 @@ export function setActionOutputs(result: AnalysisResult): void {
  */
 export function setWhitelistOutputs(username: string): void {
   core.setOutput('passed', true)
-  core.setOutput('passed-count', 8)
-  core.setOutput('total-metrics', 8)
+  core.setOutput('passed-count', VALID_METRIC_NAMES.length)
+  core.setOutput('total-metrics', VALID_METRIC_NAMES.length)
   core.setOutput('breakdown', JSON.stringify({ whitelisted: true, username }))
   core.setOutput('recommendations', JSON.stringify([]))
   core.setOutput('is-new-account', false)
@@ -96,8 +104,8 @@ export function logResultSummary(result: AnalysisResult): void {
 
   for (const metric of result.metrics) {
     const name = metric.name.padEnd(20)
-    const value = formatValueForLog(metric).padEnd(14)
-    const threshold = formatThresholdForLog(metric).padEnd(14)
+    const value = formatMetricValue(metric).padEnd(14)
+    const threshold = formatThreshold(metric).padEnd(14)
     const status = metric.passed ? '✓ Pass ' : '✗ Fail '
     core.info(`│ ${name} │ ${value} │ ${threshold} │ ${status} │`)
   }
@@ -154,24 +162,30 @@ export async function writeJobSummary(result: AnalysisResult, config: Contributo
     ...result.metrics.map((m) => [
       formatMetricName(m.name),
       getMetricDescription(m.name, config.minimumStars),
-      formatValueForLog(m),
-      formatThresholdForLog(m),
+      formatMetricValue(m),
+      formatThreshold(m),
       m.passed ? '✅' : '❌'
     ])
   ])
 
   // Add verbose details if enabled
   if (result.metricsData && config.verboseDetails !== 'none') {
-    const metricsToShow = result.metrics.filter((m) =>
-      shouldShowVerboseDetailsForSummary(config.verboseDetails, m.passed)
-    )
+    const metricsToShow = result.metrics.filter((m) => shouldShowVerboseDetails(config.verboseDetails, m.passed))
 
     if (metricsToShow.length > 0) {
       core.summary.addHeading('Metric Details', 3)
+
+      // Track shown groups to avoid duplicate details for paired metrics
+      const shownGroups = new Set<string>()
+
       for (const metric of metricsToShow) {
-        const details = formatVerboseDetailsForSummary(metric.name, result.metricsData)
-        if (details) {
-          core.summary.addRaw(details)
+        const group = getMetricDetailGroup(metric.name)
+        if (!shownGroups.has(group)) {
+          shownGroups.add(group)
+          const details = formatVerboseDetailsForSummary(metric.name, result.metricsData)
+          if (details) {
+            core.summary.addRaw(details)
+          }
         }
       }
     }
@@ -191,19 +205,9 @@ export async function writeJobSummary(result: AnalysisResult, config: Contributo
 }
 
 /**
- * Check if verbose details should be shown for a metric in job summary
- */
-function shouldShowVerboseDetailsForSummary(verboseLevel: VerboseDetailsLevel, metricPassed: boolean): boolean {
-  if (verboseLevel === 'none') return false
-  if (verboseLevel === 'all') return true
-  if (verboseLevel === 'failed') return !metricPassed
-  return false
-}
-
-/**
  * Format verbose details for job summary (markdown format without HTML details tags)
  */
-function formatVerboseDetailsForSummary(metricName: string, metricsData: AllMetricsData): string {
+function formatVerboseDetailsForSummary(metricName: MetricName, metricsData: AllMetricsData): string {
   switch (metricName) {
     case 'prMergeRate': {
       const data = metricsData.prHistory
@@ -255,56 +259,18 @@ function formatVerboseDetailsForSummary(metricName: string, metricsData: AllMetr
 }
 
 /**
- * Format metric name for display with documentation link
+ * Get the detail group for a metric (to avoid duplicate details for paired metrics)
  */
-function formatMetricName(name: string): string {
-  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/'
-
-  const metricInfo: Record<string, { display: string; file: string }> = {
-    prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md' },
-    repoQuality: { display: 'Repo Quality', file: 'repo-quality.md' },
-    positiveReactions: { display: 'Positive Reactions', file: 'positive-reactions.md' },
-    negativeReactions: { display: 'Negative Reactions', file: 'negative-reactions.md' },
-    accountAge: { display: 'Account Age', file: 'account-age.md' },
-    activityConsistency: { display: 'Activity Consistency', file: 'activity-consistency.md' },
-    issueEngagement: { display: 'Issue Engagement', file: 'issue-engagement.md' },
-    codeReviews: { display: 'Code Reviews', file: 'code-reviews.md' },
-    mergerDiversity: { display: 'Merger Diversity', file: 'merger-diversity.md' },
-    repoHistoryMergeRate: { display: 'Repo History Merge Rate', file: 'repo-history.md' },
-    repoHistoryMinPRs: { display: 'Repo History Min PRs', file: 'repo-history.md' },
-    profileCompleteness: { display: 'Profile Completeness', file: 'profile-completeness.md' },
-    suspiciousPatterns: { display: 'Suspicious Patterns', file: 'suspicious-patterns.md' }
+function getMetricDetailGroup(metricName: MetricName): string {
+  const groups: Partial<Record<MetricName, string>> = {
+    positiveReactions: 'reactions',
+    negativeReactions: 'reactions',
+    accountAge: 'account',
+    activityConsistency: 'account',
+    repoHistoryMergeRate: 'repoHistory',
+    repoHistoryMinPRs: 'repoHistory'
   }
-
-  const info = metricInfo[name]
-  if (info) {
-    return `[${info.display}](${BASE_URL}${info.file})`
-  }
-
-  return name
-}
-
-/**
- * Get metric description for display
- */
-function getMetricDescription(name: string, minimumStars?: number): string {
-  const descriptions: Record<string, string> = {
-    prMergeRate: 'PRs merged vs closed',
-    repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
-    positiveReactions: 'Positive reactions received',
-    negativeReactions: 'Negative reactions received',
-    accountAge: 'GitHub account age',
-    activityConsistency: 'Regular activity over time',
-    issueEngagement: 'Issues with community engagement',
-    codeReviews: 'Code reviews given to others',
-    mergerDiversity: 'Unique maintainers who merged PRs',
-    repoHistoryMergeRate: 'Merge rate in this repo',
-    repoHistoryMinPRs: 'Previous PRs in this repo',
-    profileCompleteness: 'Profile richness (bio, followers)',
-    suspiciousPatterns: 'Spam-like activity detection'
-  }
-
-  return descriptions[name] || ''
+  return groups[metricName] ?? metricName
 }
 
 /**
@@ -315,38 +281,4 @@ export async function writeWhitelistSummary(username: string): Promise<void> {
     .addHeading('Contributor Report Analysis', 2)
     .addRaw(`✅ **@${username}** is a trusted contributor and was automatically approved.\n`)
     .write()
-}
-
-/**
- * Format metric value for log display
- */
-function formatValueForLog(metric: { name: string; rawValue: number }): string {
-  switch (metric.name) {
-    case 'prMergeRate':
-    case 'activityConsistency':
-      return `${(metric.rawValue * 100).toFixed(0)}%`
-    case 'accountAge':
-      return `${metric.rawValue} days`
-    default:
-      return `${metric.rawValue}`
-  }
-}
-
-/**
- * Format threshold for log display
- */
-function formatThresholdForLog(metric: { name: string; threshold: number }): string {
-  if (metric.name === 'suspiciousPatterns') {
-    return 'N/A'
-  }
-  if (metric.name === 'negativeReactions') {
-    return `<= ${metric.threshold}`
-  }
-  if (metric.name === 'prMergeRate' || metric.name === 'activityConsistency') {
-    return `>= ${(metric.threshold * 100).toFixed(0)}%`
-  }
-  if (metric.name === 'accountAge') {
-    return `>= ${metric.threshold} days`
-  }
-  return `>= ${metric.threshold}`
 }

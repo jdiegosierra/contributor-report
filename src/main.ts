@@ -37,17 +37,10 @@ export async function run(): Promise<void> {
     // Initialize GitHub client
     const client = new GitHubClient(config.githubToken)
 
-    // Check if user is in whitelist
-    if (config.trustedUsers.includes(username)) {
+    // Check if user is in whitelist (case-insensitive, matching GitHub behavior)
+    if (config.trustedUsers.some((u) => u.toLowerCase() === username.toLowerCase())) {
       core.info(`User ${username} is in trusted users list, skipping analysis`)
-      setWhitelistOutputs(username)
-      await writeWhitelistSummary(username)
-
-      // Always comment (upsert)
-      if (!config.dryRun) {
-        const comment = generateWhitelistComment(username)
-        await client.upsertPRComment(prContext, comment, COMMENT_MARKER)
-      }
+      await handleWhitelistedUser(username, config.dryRun, client, prContext)
       return
     }
 
@@ -56,22 +49,19 @@ export async function run(): Promise<void> {
       const isMember = await client.checkOrgMembership(username, config.trustedOrgs)
       if (isMember) {
         core.info(`User ${username} is member of a trusted organization, skipping analysis`)
-        setWhitelistOutputs(username)
-        await writeWhitelistSummary(username)
-
-        // Always comment (upsert)
-        if (!config.dryRun) {
-          const comment = generateWhitelistComment(username)
-          await client.upsertPRComment(prContext, comment, COMMENT_MARKER)
-        }
+        await handleWhitelistedUser(username, config.dryRun, client, prContext)
         return
       }
     }
 
     // Calculate analysis window
+    // Clamp day to avoid month overflow (e.g., March 31 - 1 month should be Feb 28, not March 3)
     const now = new Date()
-    const sinceDate = new Date(now)
-    sinceDate.setMonth(sinceDate.getMonth() - config.analysisWindowMonths)
+    const targetMonth = now.getUTCMonth() - config.analysisWindowMonths
+    const lastDayOfTargetMonth = new Date(Date.UTC(now.getUTCFullYear(), targetMonth + 1, 0)).getUTCDate()
+    const sinceDate = new Date(
+      Date.UTC(now.getUTCFullYear(), targetMonth, Math.min(now.getUTCDate(), lastDayOfTargetMonth))
+    )
 
     // Fetch contributor data
     core.info(
@@ -117,6 +107,24 @@ export async function run(): Promise<void> {
     } else {
       core.setFailed('Action failed with unknown error')
     }
+  }
+}
+
+/**
+ * Handle whitelisted user (trusted user or org member)
+ */
+async function handleWhitelistedUser(
+  username: string,
+  dryRun: boolean,
+  client: GitHubClient,
+  prContext: NonNullable<ReturnType<typeof getPRContext>>
+): Promise<void> {
+  setWhitelistOutputs(username)
+  await writeWhitelistSummary(username)
+
+  if (!dryRun) {
+    const comment = generateWhitelistComment(username)
+    await client.upsertPRComment(prContext, comment, COMMENT_MARKER)
   }
 }
 
@@ -169,21 +177,13 @@ async function handleFailedCheck(
       break
 
     case 'label':
+    case 'comment-and-label':
+      // Comment already handled above (for comment-and-label)
       if (!config.dryRun) {
         await client.addPRLabel(prContext, config.labelName)
         core.info(`Added label "${config.labelName}"`)
       } else {
         core.info(`[DRY RUN] Would add label "${config.labelName}"`)
-      }
-      break
-
-    case 'comment-and-label':
-      // Comment already handled above
-      if (!config.dryRun) {
-        await client.addPRLabel(prContext, config.labelName)
-        core.info(`Added label "${config.labelName}"`)
-      } else {
-        core.info(`[DRY RUN] Would add label`)
       }
       break
 

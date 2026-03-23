@@ -273,7 +273,6 @@ export function evaluateContributor(
     recommendations,
     isNewAccount: accountIsNew,
     hasLimitedData,
-    isTrustedUser: false,
     wasWhitelisted: false,
     metricsData
   }

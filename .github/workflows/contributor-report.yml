@@ -32,5 +32,5 @@ jobs:
           analysis-window: '12'
           on-fail: comment
           dry-run: false
-          trusted-users: dependabot[bot],renovate[bot]
+          trusted-users: dependabot[bot],renovate[bot],github-actions[bot]
           verbose-details: 'all'

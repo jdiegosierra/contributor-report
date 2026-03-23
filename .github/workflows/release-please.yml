@@ -1,0 +1,43 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Checkout
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      - name: Update floating major tag
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          MAJOR_VERSION: ${{ steps.release.outputs.major }}
+          TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        run: |
+          echo "Updating floating tag v${MAJOR_VERSION} to point to ${TAG_NAME}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -d "v${MAJOR_VERSION}" 2>/dev/null || true
+          git push origin ":refs/tags/v${MAJOR_VERSION}" 2>/dev/null || true
+          git tag -a "v${MAJOR_VERSION}" -m "Floating tag for v${MAJOR_VERSION} major releases"
+          git push origin "v${MAJOR_VERSION}"

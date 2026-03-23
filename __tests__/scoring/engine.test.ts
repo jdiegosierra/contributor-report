@@ -948,7 +948,6 @@ describe('Evaluation Engine', () => {
       expect(result.analyzedAt).toBeInstanceOf(Date)
       expect(result.dataWindowStart).toEqual(sinceDate)
       expect(result.dataWindowEnd).toBeInstanceOf(Date)
-      expect(result.isTrustedUser).toBe(false)
       expect(result.wasWhitelisted).toBe(false)
     })
 

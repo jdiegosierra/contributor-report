@@ -1,5 +1,10 @@
 # See: https://github.com/DavidAnson/markdownlint
 
+# Ignore auto-generated and third-party files
+ignores:
+  - CHANGELOG.md
+  - .agents/**
+
 # Unordered list style
 MD004:
   style: dash

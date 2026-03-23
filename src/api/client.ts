@@ -244,23 +244,10 @@ export class GitHubClient {
       }
 
       return parseRateLimit(result.rateLimit)
-    } catch {
+    } catch (error) {
+      core.debug(`Failed to check rate limit: ${error instanceof Error ? error.message : 'Unknown error'}`)
       return null
     }
-  }
-
-  /**
-   * Add a comment to a pull request
-   */
-  async addPRComment(context: PRContext, body: string): Promise<void> {
-    await executeWithRetry(async () => {
-      await this.octokit.rest.issues.createComment({
-        owner: context.owner,
-        repo: context.repo,
-        issue_number: context.prNumber,
-        body
-      })
-    })
   }
 
   /**
@@ -273,7 +260,8 @@ export class GitHubClient {
       const { data: comments } = await this.octokit.rest.issues.listComments({
         owner: context.owner,
         repo: context.repo,
-        issue_number: context.prNumber
+        issue_number: context.prNumber,
+        per_page: 100
       })
 
       // Find existing comment with marker
@@ -311,16 +299,20 @@ export class GitHubClient {
         repo: context.repo,
         name: label
       })
-    } catch {
-      // Label doesn't exist, create it
-      core.debug(`Creating label: ${label}`)
-      await this.octokit.rest.issues.createLabel({
-        owner: context.owner,
-        repo: context.repo,
-        name: label,
-        color: 'FFA500', // Orange
-        description: 'PR requires additional review due to contributor score'
-      })
+    } catch (error) {
+      // Only create if the label was not found (404)
+      if (error instanceof Error && 'status' in error && (error as { status: number }).status === 404) {
+        core.debug(`Creating label: ${label}`)
+        await this.octokit.rest.issues.createLabel({
+          owner: context.owner,
+          repo: context.repo,
+          name: label,
+          color: 'FFA500', // Orange
+          description: 'PR requires additional review due to contributor score'
+        })
+      } else {
+        throw error
+      }
     }
   }
 

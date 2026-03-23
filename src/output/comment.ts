@@ -3,8 +3,15 @@
  */
 
 import type { AnalysisResult } from '../types/scoring.js'
-import type { ContributorQualityConfig, VerboseDetailsLevel } from '../types/config.js'
-import type { MetricCheckResult, AllMetricsData } from '../types/metrics.js'
+import type { ContributorQualityConfig } from '../types/config.js'
+import type { AllMetricsData, MetricName } from '../types/metrics.js'
+import {
+  formatMetricName,
+  getMetricDescription,
+  formatMetricValue,
+  formatThreshold,
+  shouldShowVerboseDetails
+} from './shared.js'
 
 /** Unique marker to identify our comments for updates */
 export const COMMENT_MARKER = '<!-- contributor-report-check -->'
@@ -99,61 +106,6 @@ export function generateAnalysisComment(result: AnalysisResult, config: Contribu
 }
 
 /**
- * Generate PR comment for passed check (compact version)
- */
-export function generatePassedComment(result: AnalysisResult, config: ContributorQualityConfig): string {
-  const lines: string[] = [
-    COMMENT_MARKER,
-    '## ✅ Contributor Report',
-    '',
-    `**User:** @${result.username}`,
-    `**Status:** Passed (${result.passedCount}/${result.totalMetrics} metrics)`,
-    '',
-    '<details>',
-    '<summary>View metric details</summary>',
-    '',
-    '| Metric | Description | Value | Threshold | Status |',
-    '|--------|-------------|-------|-----------|--------|'
-  ]
-
-  for (const metric of result.metrics) {
-    const statusIcon = metric.passed ? '✅' : '❌'
-    const description = getMetricDescription(metric.name, config.minimumStars)
-    lines.push(
-      `| ${formatMetricName(metric.name)} | ${description} | ${formatMetricValue(metric)} | ${formatThreshold(metric)} | ${statusIcon} |`
-    )
-  }
-
-  lines.push('')
-
-  // Add verbose details after the table (if enabled)
-  if (result.metricsData && config.verboseDetails !== 'none') {
-    const verboseMetrics = result.metrics.filter((m) => shouldShowVerboseDetails(config.verboseDetails, m.passed))
-
-    if (verboseMetrics.length > 0) {
-      lines.push('#### Metric Details')
-      lines.push('')
-
-      // Track which detail groups have been shown to avoid duplicates
-      const shownGroups = new Set<string>()
-
-      for (const metric of verboseMetrics) {
-        const group = getMetricDetailGroup(metric.name)
-        if (!shownGroups.has(group)) {
-          shownGroups.add(group)
-          lines.push(formatVerboseDetails(metric.name, result.metricsData))
-          lines.push('')
-        }
-      }
-    }
-  }
-
-  lines.push('</details>')
-
-  return lines.join('\n')
-}
-
-/**
  * Generate PR comment for whitelisted user
  */
 export function generateWhitelistComment(username: string): string {
@@ -169,142 +121,10 @@ export function generateWhitelistComment(username: string): string {
 }
 
 /**
- * Format metric value for display
- */
-function formatMetricValue(metric: MetricCheckResult): string {
-  switch (metric.name) {
-    case 'prMergeRate':
-    case 'activityConsistency':
-      return `${(metric.rawValue * 100).toFixed(0)}%`
-    case 'accountAge':
-      return `${metric.rawValue} days`
-    default:
-      return `${metric.rawValue}`
-  }
-}
-
-/**
- * Format threshold for display
- */
-function formatThreshold(metric: MetricCheckResult): string {
-  // Suspicious patterns has no configurable threshold
-  if (metric.name === 'suspiciousPatterns') {
-    return 'N/A'
-  }
-
-  // For negative reactions, it's a maximum (<=)
-  if (metric.name === 'negativeReactions') {
-    return `<= ${metric.threshold}`
-  }
-
-  // For percentages
-  if (metric.name === 'prMergeRate' || metric.name === 'activityConsistency') {
-    return `>= ${(metric.threshold * 100).toFixed(0)}%`
-  }
-
-  // For account age
-  if (metric.name === 'accountAge') {
-    return `>= ${metric.threshold} days`
-  }
-
-  // Default (>=)
-  return `>= ${metric.threshold}`
-}
-
-/**
- * Format metric name for display with documentation link
- */
-function formatMetricName(name: string): string {
-  const BASE_URL = 'https://github.com/jdiegosierra/contributor-report/blob/main/docs/metrics/'
-
-  const metricInfo: Record<string, { display: string; file: string; description: string }> = {
-    prMergeRate: { display: 'PR Merge Rate', file: 'pr-merge-rate.md', description: 'PRs merged vs closed' },
-    repoQuality: { display: 'Repo Quality', file: 'repo-quality.md', description: 'Contributions to starred repos' },
-    positiveReactions: {
-      display: 'Positive Reactions',
-      file: 'positive-reactions.md',
-      description: 'Positive reactions received'
-    },
-    negativeReactions: {
-      display: 'Negative Reactions',
-      file: 'negative-reactions.md',
-      description: 'Negative reactions received'
-    },
-    accountAge: { display: 'Account Age', file: 'account-age.md', description: 'GitHub account age' },
-    activityConsistency: {
-      display: 'Activity Consistency',
-      file: 'activity-consistency.md',
-      description: 'Regular activity over time'
-    },
-    issueEngagement: {
-      display: 'Issue Engagement',
-      file: 'issue-engagement.md',
-      description: 'Issues with community engagement'
-    },
-    codeReviews: { display: 'Code Reviews', file: 'code-reviews.md', description: 'Code reviews given to others' },
-    mergerDiversity: {
-      display: 'Merger Diversity',
-      file: 'merger-diversity.md',
-      description: 'Unique maintainers who merged PRs'
-    },
-    repoHistoryMergeRate: {
-      display: 'Repo History Merge Rate',
-      file: 'repo-history.md',
-      description: 'Merge rate in this repo'
-    },
-    repoHistoryMinPRs: {
-      display: 'Repo History Min PRs',
-      file: 'repo-history.md',
-      description: 'Previous PRs in this repo'
-    },
-    profileCompleteness: {
-      display: 'Profile Completeness',
-      file: 'profile-completeness.md',
-      description: 'Profile richness (bio, followers)'
-    },
-    suspiciousPatterns: {
-      display: 'Suspicious Patterns',
-      file: 'suspicious-patterns.md',
-      description: 'Spam-like activity detection'
-    }
-  }
-
-  const info = metricInfo[name]
-  if (info) {
-    return `[${info.display}](${BASE_URL}${info.file})`
-  }
-
-  return name
-}
-
-/**
- * Get metric description for display
- */
-function getMetricDescription(name: string, minimumStars?: number): string {
-  const descriptions: Record<string, string> = {
-    prMergeRate: 'PRs merged vs closed',
-    repoQuality: `Repos with ≥${minimumStars ?? 100} stars`,
-    positiveReactions: 'Positive reactions received',
-    negativeReactions: 'Negative reactions received',
-    accountAge: 'GitHub account age',
-    activityConsistency: 'Regular activity over time',
-    issueEngagement: 'Issues with community engagement',
-    codeReviews: 'Code reviews given to others',
-    mergerDiversity: 'Unique maintainers who merged PRs',
-    repoHistoryMergeRate: 'Merge rate in this repo',
-    repoHistoryMinPRs: 'Previous PRs in this repo',
-    profileCompleteness: 'Profile richness (bio, followers)',
-    suspiciousPatterns: 'Spam-like activity detection'
-  }
-
-  return descriptions[name] || ''
-}
-
-/**
  * Get the detail group for a metric (to avoid duplicate details)
  */
-function getMetricDetailGroup(metricName: string): string {
-  const groups: Record<string, string> = {
+function getMetricDetailGroup(metricName: MetricName): string {
+  const groups: Partial<Record<MetricName, string>> = {
     positiveReactions: 'reactions',
     negativeReactions: 'reactions',
     accountAge: 'account',
@@ -312,23 +132,13 @@ function getMetricDetailGroup(metricName: string): string {
     repoHistoryMergeRate: 'repoHistory',
     repoHistoryMinPRs: 'repoHistory'
   }
-  return groups[metricName] || metricName
-}
-
-/**
- * Check if verbose details should be shown for a metric
- */
-function shouldShowVerboseDetails(verboseLevel: VerboseDetailsLevel, metricPassed: boolean): boolean {
-  if (verboseLevel === 'none') return false
-  if (verboseLevel === 'all') return true
-  if (verboseLevel === 'failed') return !metricPassed
-  return false
+  return groups[metricName] ?? metricName
 }
 
 /**
  * Format verbose details for a specific metric
  */
-export function formatVerboseDetails(metricName: string, metricsData: AllMetricsData): string {
+export function formatVerboseDetails(metricName: MetricName, metricsData: AllMetricsData): string {
   switch (metricName) {
     case 'prMergeRate':
       return formatPRMergeRateDetails(metricsData)
@@ -639,12 +449,21 @@ function formatProfileCompletenessDetails(metricsData: AllMetricsData): string {
     '|-----------|--------|--------|'
   ]
 
-  // Followers (up to 40 points)
-  const followerPoints = Math.min(data.followersCount, 40)
+  // Followers (up to 40 points: 20 base + 10 at >=10 + 10 at >=50)
+  let followerPoints = 0
+  if (data.followersCount > 0) {
+    followerPoints = 20
+    if (data.followersCount >= 10) followerPoints += 10
+    if (data.followersCount >= 50) followerPoints += 10
+  }
   lines.push(`| Followers | ${data.followersCount} | +${followerPoints}/40 |`)
 
-  // Public repos (up to 20 points)
-  const repoPoints = Math.min(data.publicReposCount, 20)
+  // Public repos (up to 20 points: 15 base + 5 at >=5)
+  let repoPoints = 0
+  if (data.publicReposCount > 0) {
+    repoPoints = 15
+    if (data.publicReposCount >= 5) repoPoints += 5
+  }
   lines.push(`| Public repos | ${data.publicReposCount} | +${repoPoints}/20 |`)
 
   // Bio (20 points)

@@ -2,13 +2,8 @@
  * Default configuration values
  */
 
-import type {
-  ContributorQualityConfig,
-  MetricThresholds,
-  FailAction,
-  NewAccountAction,
-  VerboseDetailsLevel
-} from '../types/config.js'
+import type { ContributorQualityConfig, MetricThresholds } from '../types/config.js'
+import type { MetricName } from '../types/metrics.js'
 
 import { DEFAULT_THRESHOLDS, DEFAULT_REQUIRED_METRICS, DEFAULT_TRUSTED_USERS } from '../types/config.js'
 
@@ -23,13 +18,13 @@ export const DEFAULT_CONFIG: Omit<ContributorQualityConfig, 'githubToken'> = {
   analysisWindowMonths: 12,
   trustedUsers: DEFAULT_TRUSTED_USERS,
   trustedOrgs: [],
-  onFail: 'comment' as FailAction,
+  onFail: 'comment',
   labelName: 'needs-review',
   dryRun: false,
-  newAccountAction: 'neutral' as NewAccountAction,
+  newAccountAction: 'neutral',
   newAccountThresholdDays: 30,
   enableSpamDetection: true,
-  verboseDetails: 'none' as VerboseDetailsLevel
+  verboseDetails: 'none'
 }
 
 /** Validate threshold values */
@@ -65,6 +60,22 @@ export function validateThresholds(thresholds: MetricThresholds): void {
   if (thresholds.profileCompleteness < 0 || thresholds.profileCompleteness > 100) {
     throw new Error(`profileCompleteness threshold must be between 0 and 100, got ${thresholds.profileCompleteness}`)
   }
+
+  if (thresholds.repoQuality < 0) {
+    throw new Error(`repoQuality threshold must be non-negative, got ${thresholds.repoQuality}`)
+  }
+
+  if (thresholds.positiveReactions < 0) {
+    throw new Error(`positiveReactions threshold must be non-negative, got ${thresholds.positiveReactions}`)
+  }
+
+  if (thresholds.issueEngagement < 0) {
+    throw new Error(`issueEngagement threshold must be non-negative, got ${thresholds.issueEngagement}`)
+  }
+
+  if (thresholds.codeReviews < 0) {
+    throw new Error(`codeReviews threshold must be non-negative, got ${thresholds.codeReviews}`)
+  }
 }
 
 /** Merge custom thresholds with defaults */
@@ -76,7 +87,7 @@ export function mergeThresholds(custom: Partial<MetricThresholds>): MetricThresh
 }
 
 /** Valid metric names for required-metrics validation */
-export const VALID_METRIC_NAMES = [
+export const VALID_METRIC_NAMES: readonly MetricName[] = [
   'prMergeRate',
   'repoQuality',
   'positiveReactions',
@@ -90,12 +101,20 @@ export const VALID_METRIC_NAMES = [
   'repoHistoryMinPRs',
   'profileCompleteness',
   'suspiciousPatterns'
-] as const
+]
 
 /** Validate required metrics list */
-export function validateRequiredMetrics(metrics: string[]): string[] {
-  const valid = metrics.filter((m) => VALID_METRIC_NAMES.includes(m as (typeof VALID_METRIC_NAMES)[number]))
-  const invalid = metrics.filter((m) => !VALID_METRIC_NAMES.includes(m as (typeof VALID_METRIC_NAMES)[number]))
+export function validateRequiredMetrics(metrics: string[]): MetricName[] {
+  const valid: MetricName[] = []
+  const invalid: string[] = []
+
+  for (const m of metrics) {
+    if (VALID_METRIC_NAMES.includes(m as MetricName)) {
+      valid.push(m as MetricName)
+    } else {
+      invalid.push(m)
+    }
+  }
 
   if (invalid.length > 0) {
     throw new Error(`Invalid metric names in required-metrics: ${invalid.join(', ')}`)
