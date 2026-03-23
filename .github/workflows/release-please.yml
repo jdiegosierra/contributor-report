@@ -19,14 +19,14 @@ jobs:
         id: release
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Checkout
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       - name: Update floating major tag
         if: ${{ steps.release.outputs.release_created }}
