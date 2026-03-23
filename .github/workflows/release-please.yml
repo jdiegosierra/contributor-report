@@ -5,7 +5,9 @@ on:
     branches:
       - main
 
-permissions: {}
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   release-please:
@@ -17,14 +19,14 @@ jobs:
         id: release
         uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
 
       - name: Checkout
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
 
       - name: Update floating major tag
         if: ${{ steps.release.outputs.release_created }}
