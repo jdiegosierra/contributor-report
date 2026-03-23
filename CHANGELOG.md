@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.3](https://github.com/jdiegosierra/contributor-report/compare/v1.3.2...v1.3.3) (2026-03-23)
+
+
+### Bug Fixes
+
+* **ci:** configure git identity for release tags ([#45](https://github.com/jdiegosierra/contributor-report/issues/45)) ([8d1fa34](https://github.com/jdiegosierra/contributor-report/commit/8d1fa344b8c36526154b31163bb4c82ccc0437ff))
+* **ci:** trust github actions release PRs ([#48](https://github.com/jdiegosierra/contributor-report/issues/48)) ([6191ef5](https://github.com/jdiegosierra/contributor-report/commit/6191ef543be5694b5832b28c9c649b23a46cb958))
+* **ci:** use release please token for release PRs ([#47](https://github.com/jdiegosierra/contributor-report/issues/47)) ([6c563a8](https://github.com/jdiegosierra/contributor-report/commit/6c563a8810b5e1b807a190a764712f25374a3c86))
+
 ## [1.3.2](https://github.com/jdiegosierra/contributor-report/compare/v1.3.1...v1.3.2) (2026-03-23)
 
 
