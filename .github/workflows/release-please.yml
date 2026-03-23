@@ -35,6 +35,8 @@ jobs:
           TAG_NAME: ${{ steps.release.outputs.tag_name }}
         run: |
           echo "Updating floating tag v${MAJOR_VERSION} to point to ${TAG_NAME}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -d "v${MAJOR_VERSION}" 2>/dev/null || true
           git push origin ":refs/tags/v${MAJOR_VERSION}" 2>/dev/null || true
           git tag -a "v${MAJOR_VERSION}" -m "Floating tag for v${MAJOR_VERSION} major releases"
